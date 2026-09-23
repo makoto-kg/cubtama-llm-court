@@ -1,0 +1,12 @@
+{
+  "responses": [
+    {
+      "chunks": [
+        { "reasoning": "論題を検討する。" },
+        { "content": "{\"stance\": \"賛成\", \"claim\": \"通勤が減り集中時間が増える\"," },
+        { "content": " \"reasons\": [\"通勤時間の削減\", \"割り込みの減少\"], \"confidence\": 0.7}" },
+        { "usage": { "input_tokens": 120, "output_tokens": 48 } }
+      ]
+    }
+  ]
+}

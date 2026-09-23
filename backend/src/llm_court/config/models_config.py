@@ -39,6 +39,9 @@ class Capabilities(_Strict):
     """プロバイダが対応する機能。呼び出し側はこれを見て分岐する。"""
 
     json_schema: bool = False
+    """`response_format: json_schema` に対応する。"""
+    json_mode: bool = False
+    """`response_format: json_object`(JSON モード)に対応する。"""
     tool_calling: bool = False
     streaming: bool = False
 
@@ -50,6 +53,7 @@ class ProviderConfig(_Strict):
     api_key: SecretStr = SecretStr("not-needed")
     capabilities: Capabilities = Capabilities()
     max_concurrency: int = Field(default=1, ge=1)
+    timeout_s: float = Field(default=300.0, gt=0)
 
 
 class ModelConfig(_Strict):

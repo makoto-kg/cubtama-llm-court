@@ -1,0 +1,13 @@
+{
+  "responses": [
+    {
+      "chunks": [
+        { "content": "<thi" },
+        { "content": "nk>まず結論を決める。</th" },
+        { "content": "ink>\n\n賛成です。" },
+        { "content": "理由は二つあります。" },
+        { "usage": { "input_tokens": 80, "output_tokens": 30 } }
+      ]
+    }
+  ]
+}

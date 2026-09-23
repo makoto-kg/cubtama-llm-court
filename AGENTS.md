@@ -11,10 +11,10 @@ LLMはOpenAI互換APIのみに依存し、完全ローカル(LM Studio等)での
 
 ## フェーズ状況
 
-現在のフェーズ: **Phase 0 完了(Phase 1 未着手)**
+現在のフェーズ: **Phase 1 完了(Phase 2 未着手)**
 
 - [x] Phase 0: リポジトリ基盤
-- [ ] Phase 1: LLMクライアント層
+- [x] Phase 1: LLMクライアント層
 - [ ] Phase 2: 捜査パイプライン(証拠品化)
 - [ ] Phase 3: ディベートエンジンMVP(LLM vs LLM、CLI) ← 最初のマイルストーン
 - [ ] Phase 4: 評価ハーネス

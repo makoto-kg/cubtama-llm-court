@@ -1,0 +1,11 @@
+{
+  "responses": [
+    { "error": { "kind": "rejected", "status": 400, "message": "response_format type 'json_schema' is not supported" } },
+    {
+      "chunks": [
+        { "content": "{\"stance\": \"反対\", \"claim\": \"早期教育の効果は限定的\", \"reasons\": [\"母語の習得が優先\", \"教員が不足\"], \"confidence\": 0.5}" },
+        { "usage": { "input_tokens": 300, "output_tokens": 45 } }
+      ]
+    }
+  ]
+}

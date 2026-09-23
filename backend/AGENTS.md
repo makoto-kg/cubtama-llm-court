@@ -21,6 +21,7 @@ uv run pytest -m "not integration"       # 単体テスト(実LLM・実検索な
 uv run pytest -m integration             # 統合テスト(LLMサーバーとSearXNGが必要)
 uv run llm-court --help                  # CLI
 uv run llm-court config check            # models.yaml の検証と役割割り当ての表示
+uv run llm-court bench -n 3 -r debater   # 役割のモデルで速度・構造化出力の成功率を計測(-r 省略で全役割)
 uv run pre-commit install                # pre-commit フック(ルートの .pre-commit-config.yaml)を有効化
 ```
 

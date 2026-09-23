@@ -1,0 +1,16 @@
+{
+  "responses": [
+    {
+      "chunks": [
+        { "content": "<think>理由は一つでよいか</think>はい、回答です。\n```json\n{\"stance\": \"賛成\", \"claim\": \"生産性が上がる\", \"reasons\": [\"通勤がない\"], \"confidence\": 0.6}\n```" },
+        { "usage": { "input_tokens": 100, "output_tokens": 40 } }
+      ]
+    },
+    {
+      "chunks": [
+        { "content": "{\"stance\": \"賛成\", \"claim\": \"生産性が上がる\", \"reasons\": [\"通勤がない\", \"集中しやすい\"], \"confidence\": 0.6}" },
+        { "usage": { "input_tokens": 180, "output_tokens": 38 } }
+      ]
+    }
+  ]
+}

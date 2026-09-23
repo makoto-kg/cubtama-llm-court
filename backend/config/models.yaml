@@ -8,18 +8,21 @@ providers:
     api_key: "not-needed"
     capabilities:
       json_schema: true
+      json_mode: false # LM Studio は json_schema を使う
       tool_calling: false
       streaming: true
     max_concurrency: 2
+    timeout_s: 300
 
+# reasoning は reasoning_effort として送る。非対応のモデルでは未設定にする
 models:
-  heavy: # 大きめの MoE。事前処理・裁判長・分析官
+  heavy: # 大きめのモデル。事前処理・裁判長・分析官
     provider: local
-    model: "REPLACE_WITH_LM_STUDIO_MODEL_ID"
+    model: "qwen/qwen3.8-27b"
     reasoning: high
   fast: # 速い MoE。セリフ生成
     provider: local
-    model: "REPLACE_WITH_LM_STUDIO_MODEL_ID"
+    model: "openai/gpt-oss-20b"
     reasoning: low
 
 # 論者と裁判長は別モデルに割り当てる(自己選好バイアス対策)
