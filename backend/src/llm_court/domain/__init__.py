@@ -1,5 +1,60 @@
-"""ドメインモデル(Pydantic)。外部のパッケージ内モジュールに依存しない。"""
+"""ドメインモデル(Pydantic)。パッケージ内の他モジュールに依存しない。"""
 
+from llm_court.domain.debate import (
+    CitationIssue,
+    CitationIssueKind,
+    Claim,
+    ClaimKind,
+    DebatePhase,
+    JudgeScore,
+    Side,
+    Statement,
+    Verdict,
+)
+from llm_court.domain.events import (
+    EVENT_ADAPTER,
+    CitationIssuesDetected,
+    ClaimsExtracted,
+    Event,
+    EventBase,
+    EvidenceCollected,
+    JudgeScored,
+    LLMCallInfo,
+    LLMCallRecorded,
+    PhaseStarted,
+    SessionAborted,
+    SessionStarted,
+    StatementMade,
+    VerdictDelivered,
+)
 from llm_court.domain.evidence import Evidence, KeyFact, ResearchReport, SkippedSource
 
-__all__ = ["Evidence", "KeyFact", "ResearchReport", "SkippedSource"]
+__all__ = [
+    "EVENT_ADAPTER",
+    "CitationIssue",
+    "CitationIssueKind",
+    "CitationIssuesDetected",
+    "Claim",
+    "ClaimKind",
+    "ClaimsExtracted",
+    "DebatePhase",
+    "Event",
+    "EventBase",
+    "Evidence",
+    "EvidenceCollected",
+    "JudgeScore",
+    "JudgeScored",
+    "KeyFact",
+    "LLMCallInfo",
+    "LLMCallRecorded",
+    "PhaseStarted",
+    "ResearchReport",
+    "SessionAborted",
+    "SessionStarted",
+    "Side",
+    "SkippedSource",
+    "Statement",
+    "StatementMade",
+    "Verdict",
+    "VerdictDelivered",
+]

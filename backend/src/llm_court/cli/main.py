@@ -12,15 +12,36 @@ import httpx
 import typer
 from rich.console import Console
 from rich.markup import escape
+from rich.panel import Panel
+from rich.status import Status
 from rich.table import Table
 
 from llm_court.config import ConfigError, Role, Settings, load_models_config
-from llm_court.domain import ResearchReport
+from llm_court.domain import (
+    CitationIssuesDetected,
+    ClaimsExtracted,
+    Event,
+    EvidenceCollected,
+    JudgeScored,
+    PhaseStarted,
+    ResearchReport,
+    SessionAborted,
+    Side,
+    StatementMade,
+    VerdictDelivered,
+)
+from llm_court.engine.debate import DebateEngine, DebateObserver
+from llm_court.engine.record import render_markdown
+from llm_court.engine.recorder import BufferedRecorder
+from llm_court.engine.state import DebateState
+from llm_court.engine.store import EventStore, export_jsonl
+from llm_court.engine.summary import DebateSummary, summarize
 from llm_court.llm import InMemoryRecorder, LLMClient, LLMConnectionError, PromptLoader
 from llm_court.llm.backend import OpenAIChatBackend
 from llm_court.llm.bench import BenchRow, run_bench
 from llm_court.llm.client import BackendFactory
 from llm_court.llm.errors import LLMError
+from llm_court.modes import DEBATE_MODE, Turn
 from llm_court.research.cache import PageCache
 from llm_court.research.fetch import PageFetcher
 from llm_court.research.pipeline import ResearchPipeline
@@ -271,6 +292,199 @@ def research(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
     console.print(f"保存しました: {path}")
+
+
+class ConsoleObserver(DebateObserver):
+    """ディベートの進行を Rich で表示する。"""
+
+    def __init__(self) -> None:
+        self._status: Status | None = None
+
+    def close(self) -> None:
+        self._stop_status()
+
+    def _stop_status(self) -> None:
+        if self._status is not None:
+            self._status.stop()
+            self._status = None
+
+    def on_progress(self, message: str) -> None:
+        if self._status is None:
+            self._status = console.status(message)
+            self._status.start()
+        else:
+            self._status.update(message)
+
+    def on_statement_start(self, turn: Turn) -> None:
+        self._stop_status()
+        color = "cyan" if turn.side is Side.AFFIRMATIVE else "magenta"
+        console.print(f"\n[bold {color}]【{turn.side.label}】[/bold {color}]")
+
+    def on_token(self, turn: Turn, chunk: str) -> None:
+        console.print(chunk, end="", markup=False, highlight=False, soft_wrap=True)
+
+    def on_event(self, event: Event) -> None:
+        match event:
+            case EvidenceCollected():
+                self._stop_status()
+                console.rule("証拠品")
+                for ev in event.report.evidence:
+                    console.print(
+                        f"[bold]{ev.id}[/bold] {escape(ev.title)} "
+                        f"[dim](検証済みの事実 {len(ev.verified_facts)} 件)[/dim]"
+                    )
+            case PhaseStarted():
+                self._stop_status()
+                title = event.phase.label + (f" 第{event.round}回" if event.round else "")
+                console.print()
+                console.rule(f"[bold]{title}[/bold]")
+            case StatementMade():
+                cited = ", ".join(event.statement.cited_evidence_ids) or "なし"
+                console.print(f"\n[dim]{event.statement.id} / 出典: {cited}[/dim]")
+            case CitationIssuesDetected():
+                for issue in event.issues:
+                    console.print(f"[yellow]⚠ {escape(issue.detail)}[/yellow]")
+            case ClaimsExtracted():
+                console.print(f"[dim]主張 {len(event.claims)} 件を記録[/dim]")
+            case JudgeScored():
+                order = " → ".join(side.label for side in event.score.order)
+                totals = " / ".join(f"{side.label} {event.score.total(side)} 点" for side in Side)
+                console.print(f"[dim]評価(提示順 {order}): {totals}[/dim]")
+            case VerdictDelivered():
+                self._stop_status()
+                v = event.verdict
+                result = f"{v.winner.label}の勝ち" if v.winner else "引き分け"
+                if not v.agreed:
+                    result += "(順序を入れ替えた評価で判定が割れました)"
+                console.print(
+                    Panel(escape(v.rationale), title=f"判決: {result}", border_style="green")
+                )
+            case SessionAborted():
+                self._stop_status()
+                console.print(f"[red]中断: {escape(event.reason)}[/red]")
+            case _:
+                pass
+
+
+def _fmt_s(ms: float | None) -> str:
+    return "-" if ms is None else f"{ms / 1000:.1f}s"
+
+
+def _summary_table(summary: DebateSummary) -> Table:
+    table = Table(title="ターンごとの計測")
+    for col in ("発言", "陣営", "フェーズ", "字数", "TTFT", "総時間", "出力トークン", "tok/s"):
+        table.add_column(col, justify="right" if col not in ("陣営", "フェーズ") else "left")
+    for t in summary.turns:
+        table.add_row(
+            t.statement_id,
+            t.side.label,
+            t.phase.label + (f" {t.round}" if t.round else ""),
+            str(t.chars),
+            _fmt_s(t.ttft_ms),
+            _fmt_s(t.total_ms),
+            str(t.output_tokens or "-"),
+            _fmt_num(t.tokens_per_s),
+        )
+    return table
+
+
+def _print_summary(summary: DebateSummary) -> None:
+    console.print(_summary_table(summary))
+    issues = ", ".join(f"{k} {v}" for k, v in summary.citation_issues.items()) or "なし"
+    wall = f"{summary.wall_time_s:.0f}s" if summary.wall_time_s is not None else "-"
+    console.print(
+        f"LLM 呼び出し {summary.llm_calls} 回 / 入力 {summary.input_tokens} トークン・"
+        f"出力 {summary.output_tokens} トークン / 全体 {wall}\n"
+        f"構造化出力 {summary.structured_calls} 回(失敗 {summary.structured_failures}、"
+        f"リトライ {summary.structured_retries})/ 主張 {summary.claims} 件 / 出典の問題: {issues}"
+    )
+
+
+@app.command()
+def debate(
+    topic: Annotated[str, typer.Argument(help="論題")],
+    rounds: Annotated[int, typer.Option("--rounds", "-r", min=1, help="反論の往復数")] = 3,
+    evidence: Annotated[
+        Path | None,
+        typer.Option("--evidence", "-e", help="既存の捜査結果 JSON(指定すると捜査を省略)"),
+    ] = None,
+) -> None:
+    """LLM 同士でディベートを行い、判決まで進める。"""
+    settings = Settings()
+    recorder = BufferedRecorder()
+    report: ResearchReport | None = None
+    if evidence is not None:
+        try:
+            report = ResearchReport.model_validate_json(evidence.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            console.print(f"[red]捜査結果を読み込めません:[/red] {e}")
+            raise typer.Exit(code=1) from e
+    try:
+        client = LLMClient.from_settings(
+            settings, backend_factory=backend_factory, recorder=recorder
+        )
+    except ConfigError as e:
+        console.print(f"[red]設定エラー:[/red] {e}")
+        raise typer.Exit(code=1) from e
+    prompts = PromptLoader(settings.prompts_dir)
+    research_settings = settings.research
+    observer = ConsoleObserver()
+
+    async def run() -> tuple[list[Event], BaseException | None]:
+        store = await EventStore.open(settings.database_path)
+        engine: DebateEngine | None = None
+        error: BaseException | None = None
+        try:
+            async with client, http_client_factory() as http:
+                pipeline = ResearchPipeline(
+                    client,
+                    prompts,
+                    SearXNGClient(
+                        settings.searxng_url,
+                        timeout_s=research_settings.fetch_timeout_s,
+                        client=http,
+                    ),
+                    PageFetcher(
+                        research_settings,
+                        client=http,
+                        cache=PageCache(research_settings.cache_dir),
+                    ),
+                    research_settings,
+                )
+                engine = DebateEngine(
+                    llm=client,
+                    recorder=recorder,
+                    prompts=prompts,
+                    store=store,
+                    mode=DEBATE_MODE,
+                    research=None if report is not None else pipeline.run,
+                    observer=observer,
+                )
+                try:
+                    await engine.run(topic, rounds, evidence=report)
+                except Exception as e:
+                    error = e
+            events = await store.load(engine.session_id) if engine.session_id else []
+            return events, error
+        finally:
+            observer.close()
+            await store.aclose()
+
+    events, error = asyncio.run(run())
+    if events:
+        state = DebateState.from_events(events)
+        out_dir = settings.debate_output_dir
+        jsonl = out_dir / f"{state.session_id}.jsonl"
+        markdown = out_dir / f"{state.session_id}.md"
+        export_jsonl(events, jsonl)
+        markdown.write_text(render_markdown(state, DEBATE_MODE), encoding="utf-8")
+        console.print()
+        _print_summary(summarize(events))
+        console.print(f"保存しました: {jsonl} / {markdown}")
+    if error is not None:
+        label = "接続エラー" if isinstance(error, SearchError | LLMConnectionError) else "エラー"
+        console.print(f"[red]{label}:[/red] {escape(str(error))}")
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

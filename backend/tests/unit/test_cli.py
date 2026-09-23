@@ -4,6 +4,7 @@ import pytest
 from typer.testing import CliRunner
 
 from llm_court.cli.main import app
+from llm_court.domain import ResearchReport
 from llm_court.llm.client import BackendFactory
 from tests.fakes import FakeChatBackend, FakeError, FakeResponse
 
@@ -154,3 +155,50 @@ def test_research_search_unavailable(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     result = runner.invoke(app, ["research", "テーマ", "--out", str(tmp_path / "r.json")])
     assert result.exit_code == 1
     assert "接続エラー" in result.output
+
+
+def test_debate_with_evidence_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, research_report: ResearchReport
+) -> None:
+    from llm_court.cli import main as cli_main
+    from llm_court.engine.store import load_jsonl
+    from tests.debate_fakes import DebateResponder
+
+    evidence = tmp_path / "research.json"
+    evidence.write_text(research_report.model_dump_json(), encoding="utf-8")
+
+    monkeypatch.setattr(
+        cli_main, "backend_factory", _factory(FakeChatBackend(responder=DebateResponder()))
+    )
+    monkeypatch.setenv("COLUMNS", "200")
+    monkeypatch.setenv("LLM_COURT_MODELS_CONFIG_PATH", str(BACKEND_ROOT / "config/models.yaml"))
+    monkeypatch.setenv("LLM_COURT_PROMPTS_DIR", str(BACKEND_ROOT / "prompts"))
+    monkeypatch.setenv("LLM_COURT_DATABASE_PATH", str(tmp_path / "db.sqlite"))
+    monkeypatch.setenv("LLM_COURT_DEBATE_OUTPUT_DIR", str(tmp_path / "debates"))
+
+    result = runner.invoke(app, ["debate", "論題", "--rounds", "1", "--evidence", str(evidence)])
+    assert result.exit_code == 0, result.output
+    for text in (
+        "冒頭陳述",
+        "反論 第1回",
+        "最終弁論",
+        "【肯定側】",
+        "判決: 肯定側の勝ち",
+        "ターンごとの計測",
+    ):
+        assert text in result.output
+    assert "EV-09 は存在しない証拠品です" in result.output
+
+    jsonl = next((tmp_path / "debates").glob("*.jsonl"))
+    events = load_jsonl(jsonl)
+    assert events[0].type == "session_started"
+    assert events[-1].type == "verdict_delivered"
+    assert jsonl.with_suffix(".md").read_text(encoding="utf-8").startswith("# 法廷記録")
+
+
+def test_debate_rejects_bad_evidence_file(tmp_path: Path) -> None:
+    bad = tmp_path / "bad.json"
+    bad.write_text("{}", encoding="utf-8")
+    result = runner.invoke(app, ["debate", "論題", "--evidence", str(bad)])
+    assert result.exit_code == 1
+    assert "捜査結果を読み込めません" in result.output

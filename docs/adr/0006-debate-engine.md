@@ -1,0 +1,53 @@
+# 0006: ディベートエンジン(イベントソーシング・引用検査・裁判長の二重評価)
+
+- 日付: 2026-09-23
+- 状態: 採用
+
+## 背景
+
+Phase 3 で、テーマから判決まで LLM 同士のディベートを 1 コマンドで完走させる。設計原則の「状態の真実は追記専用のイベントログ」「LLM 出力は検証してから反映」を具体化する必要があった。
+
+## 決定
+
+### イベントとストア
+- イベントは `domain/events.py` の Pydantic モデルで、`type` を判別子とする union(`Event`)にする。共通フィールドは `session_id`・`seq`・`timestamp`・`role`・`model`・`prompt_version`
+- 種類: `SessionStarted` / `EvidenceCollected` / `PhaseStarted` / `StatementMade` / `CitationIssuesDetected` / `ClaimsExtracted` / `JudgeScored` / `VerdictDelivered` / `SessionAborted` / `LLMCallRecorded`
+- ストアは SQLite(SQLAlchemy 2.0 async + aiosqlite)の `events` テーブル 1 つ。`(session_id, seq)` を一意にし、`seq` はストアが採番する。API は `append` と読み出しだけで、更新・削除を持たない
+- 状態は `DebateState.from_events` で再構築する。`apply` は新しい状態を返す純粋関数で、開廷前・閉廷後のイベント、フェーズ外の発言、`seq` の逆行を `InvalidEventError` にする。エンジンもこの `apply` で状態を更新するため、エンジン内の状態と再構築した状態は常に一致する
+- 実行ごとに JSONL(イベント列)と Markdown(法廷記録)を `data/debates/` に書き出す
+
+### LLM 呼び出しの記録
+- `LLMClient` のレコーダーに `BufferedRecorder` を渡し、エンジンがステップごとに取り出して `LLMCallRecorded` として追記する
+- `domain` はほかのパッケージに依存しないため、`llm.LLMCallRecord` と同じ形の `LLMCallInfo` を `domain` で定義し、`engine` で変換する
+- `StatementMade.call_id` で、発言とそれを生成した呼び出しを結び付ける(ターンごとの待ち時間の集計用)
+
+### 論者の発言と引用の検査
+- 論者の発言はストリーミングの自由文にする。構造化出力にはしない。発言を逐次表示でき、TTFT を実測できるため
+- 出典は本文中の `[EV-01]` 記法で書かせる(`【】`・全角・`[EV-01, EV-02]` も受け付ける)。検査は規則ベースで行う(`engine/citations.py`)
+  - 存在しない証拠品 ID → `unknown_evidence`
+  - 出典付きの文にある「」の引用(8 字以上)が、その文で引いた証拠品の検証済み事実・要約に見つからない → `unsupported_quote`(照合は `research.quotes.verify_quote`)
+  - 発言全体に出典がない → `no_citation`
+  - 出典のない文の「」は、相手の発言の引用などとみなして検査しない
+- 検出した問題は発言を差し止めずにイベントとして記録し、裁判長の評価材料に渡す
+
+### 文脈の組み立て
+- 論者に渡すのは、証拠品(要約と検証済み事実のみ)、主張ログ(両陣営の `Claim`)、相手の直前の発言の全文だけ。討論ログの全文は渡さない
+- 主張は発言ごとに claim_extractor で構造化して抽出する。失敗しても進行は止めず、失敗は `LLMCallRecorded` に残す
+
+### 裁判長
+- 最終判決のときだけ評価する(ターンごとの採点は待ち時間を増やすため行わない)
+- 陣営ごとの発言ブロックの提示順を入れ替えて 2 回評価し、並行して実行する。合計点による勝者が 2 回とも一致すればその陣営の勝ち、そうでなければ引き分け(`DebateMode.decide`)
+- 出力の `rationale` は、制御トークン(`<|…`)・Markdown・日本語以外を検証エラーにして再試行させる(gpt-oss で混入を確認したため)。スキーマでは採点を先、理由を後に置く
+
+### モード
+- ルーブリック・矛盾タイプ・進行表(冒頭陳述 → 反論 × N → 最終弁論。各フェーズとも肯定側が先)・フェーズごとの指示と字数・勝利条件を `modes/debate.py` の `DebateMode` に持たせる
+
+## 理由
+
+- 自由文と規則による検査を組み合わせると、ストリーミング表示と引用の機械的な検証を両立できる
+- 提示順を入れ替えた二重評価は、裁判長の順序バイアスを判定から除く最小の手段
+
+## 影響
+
+- ローカル検証の構成(`models.local.yaml`)では論者と裁判長が同じモデルで、PLAN の「別モデル」原則を満たさない。本来の割り当て(`models.yaml`)では別モデル
+- 出典記法を守らない論者の発言は `no_citation` として記録される

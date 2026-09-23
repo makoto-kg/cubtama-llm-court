@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     searxng_url: str = "http://localhost:8080"
     """セルフホストの SearXNG のベース URL。"""
 
+    database_path: Path = Path("data/llm_court.db")
+    """イベントストア(SQLite)のファイル。"""
+
+    debate_output_dir: Path = Path("data/debates")
+    """ディベートのイベントログ(JSONL)と法廷記録(Markdown)の保存先。"""
+
     research: ResearchSettings = ResearchSettings()
     """環境変数では `LLM_COURT_RESEARCH__TARGET_EVIDENCE=6` のように指定する。"""
 
