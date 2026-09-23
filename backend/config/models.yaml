@@ -1,0 +1,35 @@
+# プロバイダ・モデル・役割の割り当て。
+# コードは役割名で LLM を呼び、実際のモデルはここで決める。
+# api_key などの秘密情報は `${ENV_VAR}` 形式で環境変数から参照できる。
+
+providers:
+  local:
+    base_url: http://localhost:1234/v1 # LM Studio
+    api_key: "not-needed"
+    capabilities:
+      json_schema: true
+      tool_calling: false
+      streaming: true
+    max_concurrency: 2
+
+models:
+  heavy: # 大きめの MoE。事前処理・裁判長・分析官
+    provider: local
+    model: "REPLACE_WITH_LM_STUDIO_MODEL_ID"
+    reasoning: high
+  fast: # 速い MoE。セリフ生成
+    provider: local
+    model: "REPLACE_WITH_LM_STUDIO_MODEL_ID"
+    reasoning: low
+
+# 論者と裁判長は別モデルに割り当てる(自己選好バイアス対策)
+roles:
+  researcher: heavy
+  scenario_writer: heavy
+  solver: heavy
+  judge: heavy
+  analyst: heavy
+  claim_extractor: fast
+  debater: fast
+  advocate: fast
+  witness: fast

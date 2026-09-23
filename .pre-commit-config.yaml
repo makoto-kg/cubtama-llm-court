@@ -1,0 +1,35 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+      - id: detect-private-key
+
+  # ruff / pyright は backend の uv 環境のものを使い、バージョンを uv.lock に一本化する
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --directory backend ruff check --fix
+        language: system
+        types: [python]
+        files: ^backend/
+        pass_filenames: false
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --directory backend ruff format
+        language: system
+        types: [python]
+        files: ^backend/
+        pass_filenames: false
+      - id: pyright
+        name: pyright
+        entry: uv run --directory backend pyright
+        language: system
+        types: [python]
+        files: ^backend/
+        pass_filenames: false

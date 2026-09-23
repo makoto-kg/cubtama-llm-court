@@ -1,0 +1,19 @@
+# SearXNG 設定(llm-court ローカル開発用)
+# secret_key は環境変数 SEARXNG_SECRET で上書きされる
+use_default_settings: true
+
+general:
+  instance_name: "llm-court-searxng"
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "ja"
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "overridden-by-SEARXNG_SECRET"
+  limiter: false # ローカル専用のためレート制限は無効
+  image_proxy: false

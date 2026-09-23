@@ -1,0 +1,68 @@
+# llm-court
+
+法廷バトルADVの雰囲気で、LLMがテーマについて論戦するゲーム。
+LLM vs LLM / 人間 vs LLM の対戦形式と、ディベート型(現実のテーマを検索で深掘り)・裁判型(架空の事件で学ぶ)の2モードを持つ。
+LLMはOpenAI互換APIのみに依存し、完全ローカル(LM Studio等)での動作を前提とする。
+
+## 参照ドキュメント
+
+- `docs/PLAN.md` — マスタープラン。全文ではなく、作業中フェーズの節と関連する節(設計原則・ドメインモデル等)を読む
+- `docs/adr/` — 設計判断の記録
+
+## フェーズ状況
+
+現在のフェーズ: **Phase 0 完了(Phase 1 未着手)**
+
+- [x] Phase 0: リポジトリ基盤
+- [ ] Phase 1: LLMクライアント層
+- [ ] Phase 2: 捜査パイプライン(証拠品化)
+- [ ] Phase 3: ディベートエンジンMVP(LLM vs LLM、CLI) ← 最初のマイルストーン
+- [ ] Phase 4: 評価ハーネス
+- [ ] Phase 5: API化
+- [ ] Phase 6: 分析官と人間 vs LLM
+- [ ] Phase 7: Frontend MVP
+- [ ] Phase 8: 裁判型 — 事件生成パイプライン
+- [ ] Phase 9: 裁判型 — プレイ
+- [ ] Phase 10: 発展
+
+## リポジトリ構成
+
+- `backend/` — Python(FastAPI)。ゲームエンジン、LLM層、検索、CLI、API。詳細は `backend/AGENTS.md`
+- `frontend/` — Next.js(App Router)。Phase 7 から着手。詳細は `frontend/AGENTS.md`
+- `infra/` — docker compose(SearXNG等)
+- `docs/` — プランとADR
+
+## 作業ルール
+
+### 進め方
+
+- 作業は現在のフェーズの範囲に限定する。先のフェーズの機能を先回りして実装しない
+- フェーズ開始時は、PLAN.md の該当節をもとに小さなタスクへ分解してから着手する
+- フェーズの完了条件を満たしたら、次のフェーズに進まず停止して結果を報告する
+- 完了時はこのファイルの「フェーズ状況」を更新する
+- プランと実装が食い違う場合は、黙って実装を変えず、PLAN.md の更新を提案する
+
+### 設計上の不変条件
+
+- ゲーム状態の真実は追記専用のイベントログ。状態はログから再構築できること
+- LLMの出力は必ずPydanticで検証してから状態に反映する。未検証の出力で状態を変えない
+- LLMは役割名(`judge`、`debater` 等)で呼び出す。モデル名・エンドポイントをコードにハードコードせず、`backend/config/models.yaml` で割り当てる
+- LLM呼び出しは必ず backend の `llm/` 層を経由する(計測・構造化出力・リトライを一元化するため)
+- 設計判断を変えた・新たに決めた場合は `docs/adr/NNNN-タイトル.md` に記録する(背景・決定・理由・影響)
+
+### 言語とコンテンツ
+
+- プロンプト、生成テキスト、ドキュメントは日本語
+- キャラクター、UI、演出はすべてオリジナル。既存作品(逆転裁判等)の素材・デザイン・固有名詞を使わない
+
+### その他
+
+- 秘密情報(APIキー等)はコミットしない。`.env` はgit管理外、`.env.example` を用意する
+- コミットは Conventional Commits 形式
+
+## 共通完了条件(各フェーズ)
+
+- backend: `uv run ruff check` / `uv run ruff format --check` / `uv run pyright` / `uv run pytest -m "not integration"` がすべて通る
+- frontend(Phase 7以降): lint・型チェック・テストがすべて通る
+- 新しい設計判断がADRに記録されている
+- 「フェーズ状況」が更新されている

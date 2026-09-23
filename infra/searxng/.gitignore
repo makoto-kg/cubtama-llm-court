@@ -1,0 +1,4 @@
+# SearXNG が実行時に生成するファイル
+*
+!settings.yml
+!.gitignore

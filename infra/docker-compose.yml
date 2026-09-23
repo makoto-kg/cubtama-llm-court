@@ -1,0 +1,19 @@
+# ローカル開発用インフラ。
+#
+#   cp infra/.env.example infra/.env   # SEARXNG_SECRET を設定
+#   docker compose -f infra/docker-compose.yml up -d
+#   curl 'http://localhost:8080/search?q=test&format=json'
+#
+# SearXNG はローカル専用(127.0.0.1 にのみ公開)。JSON 出力を有効化した設定を同梱。
+services:
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: llm-court-searxng
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+      - SEARXNG_SECRET=${SEARXNG_SECRET:?infra/.env に SEARXNG_SECRET を設定してください}
