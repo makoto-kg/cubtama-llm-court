@@ -10,7 +10,7 @@ from llm_court.config.models_config import (
     Role,
     load_models_config,
 )
-from llm_court.config.settings import Settings
+from llm_court.config.settings import ResearchSettings, Settings
 
 __all__ = [
     "Capabilities",
@@ -18,6 +18,7 @@ __all__ = [
     "ModelConfig",
     "ModelsConfig",
     "ProviderConfig",
+    "ResearchSettings",
     "ResolvedModel",
     "Role",
     "Settings",

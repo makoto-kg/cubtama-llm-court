@@ -25,3 +25,8 @@ node_modules/
 .DS_Store
 .idea/
 .vscode/
+
+# backend のローカル設定・キャッシュ・生成物
+backend/config/*.local.yaml
+backend/.cache/
+backend/data/

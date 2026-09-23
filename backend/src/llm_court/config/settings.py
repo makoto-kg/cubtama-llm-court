@@ -3,8 +3,31 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class ResearchSettings(BaseModel):
+    """捜査パイプライン(検索・本文取得・証拠品化)の設定。"""
+
+    user_agent: str = "llm-court-research/0.1 (+local research bot)"
+    query_count: int = Field(default=4, ge=1, le=10)
+    """researcher に生成させる検索クエリ数。"""
+    search_results_per_query: int = Field(default=8, ge=1)
+    max_pages: int = Field(default=14, ge=1)
+    """本文を取得して証拠品化を試みるページの上限。"""
+    target_evidence: int = Field(default=8, ge=1)
+    """集める証拠品の上限。"""
+    fetch_timeout_s: float = Field(default=15.0, gt=0)
+    fetch_max_bytes: int = Field(default=3_000_000, gt=0)
+    fetch_concurrency: int = Field(default=4, ge=1)
+    min_text_chars: int = Field(default=400, ge=0)
+    """抽出本文がこれより短いページは捨てる。"""
+    max_chars_per_page: int = Field(default=6000, ge=500)
+    """researcher に渡すページ本文の最大文字数。使うモデルのコンテキスト長に合わせて調整する
+    (日本語はおおむね 1 字 ≒ 1 トークン。8k コンテキストなら 3500 程度まで)。"""
+    cache_dir: Path = Path(".cache")
+    output_dir: Path = Path("data/research")
 
 
 class Settings(BaseSettings):
@@ -15,6 +38,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        env_nested_delimiter="__",
     )
 
     models_config_path: Path = Path("config/models.yaml")
@@ -28,5 +52,8 @@ class Settings(BaseSettings):
 
     searxng_url: str = "http://localhost:8080"
     """セルフホストの SearXNG のベース URL。"""
+
+    research: ResearchSettings = ResearchSettings()
+    """環境変数では `LLM_COURT_RESEARCH__TARGET_EVIDENCE=6` のように指定する。"""
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"

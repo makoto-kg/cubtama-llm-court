@@ -19,3 +19,9 @@ def test_env_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     settings = Settings()
     assert settings.searxng_url == "http://searx:9999"
     assert settings.models_config_path == Path("/etc/models.yaml")
+
+
+def test_nested_research_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LLM_COURT_RESEARCH__MAX_CHARS_PER_PAGE", "12000")
+    assert Settings().research.max_chars_per_page == 12000

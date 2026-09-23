@@ -66,3 +66,91 @@ def test_bench_connection_error(monkeypatch: pytest.MonkeyPatch) -> None:
     result = runner.invoke(app, ["bench", "--n", "1", "--role", "debater"])
     assert result.exit_code == 1
     assert "接続エラー" in result.output
+
+
+def test_research_with_fakes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import json
+
+    import httpx
+
+    from llm_court.cli import main as cli_main
+    from llm_court.domain import ResearchReport
+    from llm_court.llm import ChatRequest
+
+    article = (BACKEND_ROOT / "tests/fixtures/research/article.html").read_bytes()
+
+    def site(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "searx.test":
+            results = [{"url": f"https://news{i}.example/a", "title": f"記事 {i}"} for i in (1, 2)]
+            return httpx.Response(200, json={"results": results})
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)
+        return httpx.Response(200, content=article, headers={"content-type": "text/html"})
+
+    def llm(request: ChatRequest) -> FakeResponse:
+        if "検索クエリを" in request.messages[-1].content:
+            return FakeResponse.text('{"queries": ["ベーシックインカム 実験"]}')
+        draft = {
+            "relevant": True,
+            "title": "ベーシックインカム実験",
+            "summary": "実験の要約。",
+            "key_facts": [
+                {
+                    "text": "2,000人に支給",
+                    "quote": "無作為に選ばれた失業者2,000人に毎月一定額を支給",
+                },
+                {"text": "捏造", "quote": "就業日数が半減したと報告された"},
+            ],
+        }
+        return FakeResponse.text(json.dumps(draft, ensure_ascii=False))
+
+    monkeypatch.setattr(cli_main, "backend_factory", _factory(FakeChatBackend(responder=llm)))
+    monkeypatch.setattr(
+        cli_main,
+        "http_client_factory",
+        lambda: httpx.AsyncClient(transport=httpx.MockTransport(site)),
+    )
+    monkeypatch.setenv("COLUMNS", "200")
+    monkeypatch.setenv("LLM_COURT_MODELS_CONFIG_PATH", str(BACKEND_ROOT / "config/models.yaml"))
+    monkeypatch.setenv("LLM_COURT_PROMPTS_DIR", str(BACKEND_ROOT / "prompts"))
+    monkeypatch.setenv("LLM_COURT_SEARXNG_URL", "http://searx.test")
+    monkeypatch.setenv("LLM_COURT_RESEARCH__CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("LLM_COURT_RESEARCH__MIN_TEXT_CHARS", "50")
+    out = tmp_path / "report.json"
+
+    result = runner.invoke(app, ["research", "ベーシックインカム", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert "EV-01" in result.output and "EV-02" in result.output
+    assert "✓" in result.output and "未検証" in result.output
+    assert "証拠品 2 件 / 事実 4 件(引用検証済み 2 件、50%)" in result.output
+    report = ResearchReport.model_validate_json(out.read_text(encoding="utf-8"))
+    assert len(report.evidence) == 2
+
+    # 2 回目はキャッシュから読む
+    result = runner.invoke(app, ["research", "ベーシックインカム", "--out", str(out)])
+    assert "キャッシュから読み込んだページ: 2 件" in result.output
+
+
+def test_research_search_unavailable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import httpx
+
+    from llm_court.cli import main as cli_main
+
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=request)
+
+    monkeypatch.setattr(
+        cli_main,
+        "backend_factory",
+        _factory(FakeChatBackend(responder=lambda _r: FakeResponse.text('{"queries": ["q"]}'))),
+    )
+    monkeypatch.setattr(
+        cli_main,
+        "http_client_factory",
+        lambda: httpx.AsyncClient(transport=httpx.MockTransport(down)),
+    )
+    monkeypatch.setenv("LLM_COURT_MODELS_CONFIG_PATH", str(BACKEND_ROOT / "config/models.yaml"))
+    monkeypatch.setenv("LLM_COURT_PROMPTS_DIR", str(BACKEND_ROOT / "prompts"))
+    result = runner.invoke(app, ["research", "テーマ", "--out", str(tmp_path / "r.json")])
+    assert result.exit_code == 1
+    assert "接続エラー" in result.output
