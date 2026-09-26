@@ -27,6 +27,7 @@ uv run llm-court config check            # models.yaml の検証と役割割り�
 uv run llm-court bench -n 3 -r debater   # 役割のモデルで速度・構造化出力の成功率を計測(-r 省略で全役割)
 uv run llm-court research "<テーマ>"     # 証拠品を集めて表示し data/research/ に JSON 保存(--max-chars で本文長)
 uv run llm-court debate "<テーマ>" -r 3  # LLM 同士のディベート(--evidence で既存の捜査結果を使う)
+uv run llm-court play "<テーマ>" -e eval/evidence/basic-income.json --reveal  # 人間 vs LLM を CLI で遊ぶ(シナリオ検証用。q で中断、--resume で再開)
 uv run llm-court eval eval/specs/example.yaml  # モデル構成の比較レポートを data/eval/ に出力
 uv run llm-court eval-report data/eval/<実行>  # 保存済みの評価結果からレポートを作り直す
 uv run llm-court serve                   # API サーバー(http://127.0.0.1:8000/api、ドキュメントは /docs)
@@ -34,7 +35,7 @@ uv run llm-court openapi -o openapi.json # OpenAPI スキーマを出力(フロ�
 uv run pre-commit install                # pre-commit フック(ルートの .pre-commit-config.yaml)を有効化
 ```
 
-CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(Phase 2)、`debate`(Phase 3)、`eval`(Phase 4)、`case generate` / `case validate`(Phase 8)
+CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(Phase 2)、`debate`(Phase 3)、`eval`(Phase 4)、`serve` / `openapi`(Phase 5)、`play`(Phase 6 の追加。ADR 0010)、`case generate` / `case validate`(Phase 8)
 
 ## ディレクトリの責務(`src/llm_court/`)
 

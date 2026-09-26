@@ -3,7 +3,8 @@
 import asyncio
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
@@ -13,9 +14,11 @@ import typer
 from rich.console import Console
 from rich.markup import escape
 from rich.panel import Panel
+from rich.prompt import Prompt
 from rich.status import Status
 from rich.table import Table
 
+from llm_court.cli.play import PlayLoop
 from llm_court.config import ConfigError, ModelsConfig, Role, Settings, load_models_config
 from llm_court.domain import (
     CitationIssuesDetected,
@@ -30,7 +33,7 @@ from llm_court.domain import (
     StatementMade,
     VerdictDelivered,
 )
-from llm_court.engine.debate import DebateEngine, DebateObserver
+from llm_court.engine.debate import DebateEngine, DebateObserver, SessionStateError
 from llm_court.engine.record import render_markdown
 from llm_court.engine.recorder import BufferedRecorder
 from llm_court.engine.state import DebateState
@@ -417,13 +420,7 @@ def debate(
     """LLM 同士でディベートを行い、判決まで進める。"""
     settings = Settings()
     recorder = BufferedRecorder()
-    report: ResearchReport | None = None
-    if evidence is not None:
-        try:
-            report = ResearchReport.model_validate_json(evidence.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as e:
-            console.print(f"[red]捜査結果を読み込めません:[/red] {e}")
-            raise typer.Exit(code=1) from e
+    report = _load_report(evidence)
     try:
         client = LLMClient.from_settings(
             settings, backend_factory=backend_factory, recorder=recorder
@@ -432,64 +429,177 @@ def debate(
         console.print(f"[red]設定エラー:[/red] {e}")
         raise typer.Exit(code=1) from e
     prompts = PromptLoader(settings.prompts_dir)
-    research_settings = settings.research
     observer = ConsoleObserver()
 
     async def run() -> tuple[list[Event], BaseException | None]:
-        store = await EventStore.open(settings.database_path)
-        engine: DebateEngine | None = None
         error: BaseException | None = None
-        try:
-            async with client, http_client_factory() as http:
-                pipeline = ResearchPipeline(
-                    client,
-                    prompts,
-                    SearXNGClient(
-                        settings.searxng_url,
-                        timeout_s=research_settings.fetch_timeout_s,
-                        client=http,
-                    ),
-                    PageFetcher(
-                        research_settings,
-                        client=http,
-                        cache=PageCache(research_settings.cache_dir),
-                    ),
-                    research_settings,
+        async with _engine_context(
+            settings, client, recorder, prompts, observer, research=report is None
+        ) as (engine, store):
+            try:
+                await engine.run(topic, rounds, evidence=report)
+            except Exception as e:
+                error = e
+            events = await store.load(engine.session_id) if engine.session_id else []
+        return events, error
+
+    events, error = asyncio.run(run())
+    _save_outputs(settings, events)
+    _exit_on_error(error)
+
+
+async def _ask(question: str, choices: list[str]) -> str:
+    return await asyncio.to_thread(
+        Prompt.ask, question, choices=choices, show_choices=False, console=console
+    )
+
+
+@app.command()
+def play(
+    topic: Annotated[str | None, typer.Argument(help="論題(--resume のときは不要)")] = None,
+    side: Annotated[Side, typer.Option("--side", "-s", help="あなたが担当する陣営")] = (
+        Side.NEGATIVE
+    ),
+    rounds: Annotated[int, typer.Option("--rounds", "-r", min=1, help="反論の往復数")] = 1,
+    evidence: Annotated[
+        Path | None,
+        typer.Option("--evidence", "-e", help="既存の捜査結果 JSON(指定すると捜査を省略)"),
+    ] = None,
+    resume: Annotated[
+        str | None, typer.Option("--resume", help="中断したセッションを再開する(セッション ID)")
+    ] = None,
+    reveal: Annotated[
+        bool, typer.Option("--reveal", help="選ぶ前に候補の強さ(strong/weak/trap)を表示する")
+    ] = False,
+) -> None:
+    """人間 vs LLM を CLI で遊ぶ(シナリオ検証用の簡易モード)。
+
+    人間の手番で分析官の選択肢が表示されるので、番号で選ぶ。q で中断し、--resume で再開できる。
+    """
+    if resume is None and topic is None:
+        console.print("[red]論題を指定するか、--resume でセッションを指定してください[/red]")
+        raise typer.Exit(code=2)
+    settings = Settings()
+    recorder = BufferedRecorder()
+    report = _load_report(evidence)
+    try:
+        client = LLMClient.from_settings(
+            settings, backend_factory=backend_factory, recorder=recorder
+        )
+    except ConfigError as e:
+        console.print(f"[red]設定エラー:[/red] {e}")
+        raise typer.Exit(code=1) from e
+    prompts = PromptLoader(settings.prompts_dir)
+    observer = ConsoleObserver()
+
+    async def run() -> tuple[list[Event], str, BaseException | None]:
+        error: BaseException | None = None
+        outcome = "finished"
+        async with _engine_context(
+            settings, client, recorder, prompts, observer, research=report is None
+        ) as (engine, store):
+            try:
+                if resume is not None:
+                    state = await engine.resume(resume)
+                    if state.human_side is None:
+                        raise SessionStateError("人間が参加していないセッションです")
+                    console.print(f"再開: {escape(state.topic or '')}({state.human_side.label})")
+                else:
+                    assert topic is not None
+                    await engine.start(topic, rounds, human_side=side)
+                    await engine.collect_evidence(report)
+                loop = PlayLoop(
+                    engine, DEBATE_MODE, console, _ask, reveal=reveal, before_prompt=observer.close
                 )
-                engine = DebateEngine(
+                outcome = await loop.run()
+            except Exception as e:
+                error = e
+            events = await store.load(engine.session_id) if engine.session_id else []
+        return events, outcome, error
+
+    events, outcome, error = asyncio.run(run())
+    if outcome == "quit" and events:
+        session_id = events[0].session_id
+        console.print(f"中断しました。再開するには: llm-court play --resume {session_id}")
+        return
+    _save_outputs(settings, events)
+    _exit_on_error(error)
+
+
+def _load_report(evidence: Path | None) -> ResearchReport | None:
+    if evidence is None:
+        return None
+    try:
+        return ResearchReport.model_validate_json(evidence.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        console.print(f"[red]捜査結果を読み込めません:[/red] {e}")
+        raise typer.Exit(code=1) from e
+
+
+@asynccontextmanager
+async def _engine_context(
+    settings: Settings,
+    client: LLMClient,
+    recorder: BufferedRecorder,
+    prompts: PromptLoader,
+    observer: "ConsoleObserver",
+    *,
+    research: bool,
+) -> AsyncGenerator[tuple[DebateEngine, EventStore]]:
+    """CLI 用にイベントストア・LLM・(必要なら)捜査パイプラインをつないだエンジンを用意する。"""
+    research_settings = settings.research
+    store = await EventStore.open(settings.database_path)
+    try:
+        async with client, http_client_factory() as http:
+            pipeline = ResearchPipeline(
+                client,
+                prompts,
+                SearXNGClient(
+                    settings.searxng_url, timeout_s=research_settings.fetch_timeout_s, client=http
+                ),
+                PageFetcher(
+                    research_settings, client=http, cache=PageCache(research_settings.cache_dir)
+                ),
+                research_settings,
+            )
+            yield (
+                DebateEngine(
                     llm=client,
                     recorder=recorder,
                     prompts=prompts,
                     store=store,
                     mode=DEBATE_MODE,
-                    research=None if report is not None else pipeline.run,
+                    research=pipeline.run if research else None,
                     observer=observer,
-                )
-                try:
-                    await engine.run(topic, rounds, evidence=report)
-                except Exception as e:
-                    error = e
-            events = await store.load(engine.session_id) if engine.session_id else []
-            return events, error
-        finally:
-            observer.close()
-            await store.aclose()
+                ),
+                store,
+            )
+    finally:
+        observer.close()
+        await store.aclose()
 
-    events, error = asyncio.run(run())
-    if events:
-        state = DebateState.from_events(events)
-        out_dir = settings.debate_output_dir
-        jsonl = out_dir / f"{state.session_id}.jsonl"
-        markdown = out_dir / f"{state.session_id}.md"
-        export_jsonl(events, jsonl)
-        markdown.write_text(render_markdown(state, DEBATE_MODE), encoding="utf-8")
-        console.print()
-        _print_summary(summarize(events))
-        console.print(f"保存しました: {jsonl} / {markdown}")
-    if error is not None:
-        label = "接続エラー" if isinstance(error, SearchError | LLMConnectionError) else "エラー"
-        console.print(f"[red]{label}:[/red] {escape(str(error))}")
-        raise typer.Exit(code=1)
+
+def _save_outputs(settings: Settings, events: list[Event]) -> None:
+    """イベントログ(JSONL)と法廷記録(Markdown)を保存し、計測サマリを表示する。"""
+    if not events:
+        return
+    state = DebateState.from_events(events)
+    out_dir = settings.debate_output_dir
+    jsonl = out_dir / f"{state.session_id}.jsonl"
+    markdown = out_dir / f"{state.session_id}.md"
+    export_jsonl(events, jsonl)
+    markdown.write_text(render_markdown(state, DEBATE_MODE), encoding="utf-8")
+    console.print()
+    _print_summary(summarize(events))
+    console.print(f"保存しました: {jsonl} / {markdown}")
+
+
+def _exit_on_error(error: BaseException | None) -> None:
+    if error is None:
+        return
+    label = "接続エラー" if isinstance(error, SearchError | LLMConnectionError) else "エラー"
+    console.print(f"[red]{label}:[/red] {escape(str(error))}")
+    raise typer.Exit(code=1)
 
 
 def _metrics_table(metrics: list[ConfigMetrics]) -> Table:
