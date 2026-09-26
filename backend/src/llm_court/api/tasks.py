@@ -12,7 +12,7 @@ from llm_court.api.hub import SessionHub, StreamMessage
 
 logger = logging.getLogger(__name__)
 
-TaskKind = Literal["research", "advance", "run"]
+TaskKind = Literal["research", "advance", "run", "choice"]
 
 
 class TaskConflictError(Exception):

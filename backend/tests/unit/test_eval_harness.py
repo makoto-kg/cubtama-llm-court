@@ -252,3 +252,51 @@ async def test_write_report(
     result_json = files.result_json.read_text(encoding="utf-8")
     assert '"events"' not in result_json
     assert EvalResult.model_validate_json(result_json).runs[0].events == []
+
+
+async def test_harness_analyst_eval(
+    tmp_path: Path, prompts: PromptLoader, research_report: ResearchReport
+) -> None:
+    backends = Backends()
+    spec = make_spec(tmp_path, research_report, ["good"], runs=1, judge_repeats=0, analyst=True)
+    result = await run_harness(tmp_path, prompts, spec, backends)
+    (run,) = result.runs
+    # 反論 2 + 最終弁論 2 の発言それぞれに候補セット
+    assert [s.statement_id for s in run.analyst] == ["S-03", "S-04", "S-05", "S-06"]
+    assert all(s.success and s.discarded == 1 for s in run.analyst)
+    # 否定側の発言は架空の証拠品 EV-09 を引くので、機械検査の候補が加わる
+    rule = {s.statement_id: [c for c in s.candidates if c.source == "rule"] for s in run.analyst}
+    assert [len(rule[i]) for i in ("S-03", "S-04", "S-05", "S-06")] == [0, 1, 0, 1]
+
+    metrics = config_metrics("good", result.runs, DEBATE_MODE)
+    stats = metrics.analyst
+    assert stats is not None
+    assert stats.sets == 4
+    assert stats.success_rate == 1
+    assert stats.trap_inclusion_rate == 1
+    assert stats.strengths == {"strong": 4, "weak": 4, "trap": 4}
+    assert stats.invalid_reference_rate == pytest.approx(4 / 16)
+    assert stats.strong_validity == 1
+    assert stats.trap_agreement == 0  # 検証役は trap を weak と判定する
+    assert stats.verified == 12
+    assert stats.rule_candidates == 2
+
+    files = write_report(result, [metrics], tmp_path / "report")
+    md = files.markdown.read_text(encoding="utf-8")
+    assert "### 分析官" in md
+    assert "| 罠の混入率 | 100% |" in md
+    assert "| 強さの分布(strong / weak / trap) | 4 / 4 / 4 |" in md
+    with files.summary_csv.open(encoding="utf-8") as f:
+        row = next(csv.DictReader(f))
+    assert row["analyst_trap_agreement"] == "0.0"
+
+
+async def test_harness_without_analyst_has_no_section(
+    tmp_path: Path, prompts: PromptLoader, research_report: ResearchReport
+) -> None:
+    spec = make_spec(tmp_path, research_report, ["good"], runs=1, judge_repeats=0)
+    result = await run_harness(tmp_path, prompts, spec, Backends())
+    metrics = config_metrics("good", result.runs, DEBATE_MODE)
+    assert metrics.analyst is None
+    md = write_report(result, [metrics], tmp_path / "report").markdown.read_text(encoding="utf-8")
+    assert "### 分析官" not in md

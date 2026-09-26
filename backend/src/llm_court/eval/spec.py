@@ -36,6 +36,8 @@ class EvalSpec(_Strict):
     """テーマごとのディベートの回数。"""
     judge_repeats: int = Field(default=2, ge=0)
     """終わったディベートを裁判長に追加で評価させる回数(毎回 2 つの提示順で評価する)。"""
+    analyst: bool = False
+    """分析官の候補精度も評価する(反論・最終弁論の各発言に対して候補を作り、検証役が判定する)。"""
     configs: list[EvalConfig] = Field(min_length=1)
     topics: list[EvalTopic] = Field(min_length=1)
     reference_judge: Path | None = None

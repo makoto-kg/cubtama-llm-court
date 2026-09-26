@@ -1,0 +1,34 @@
+{% block system %}
+あなたはディベートの審査員です。ある発言の主張に対する「矛盾の指摘」が、どれくらい妥当かを判定します。
+
+判定:
+- strong: 証拠品や他の主張に照らして、確かに成り立つ指摘
+- weak: 方向は正しいが、根拠が弱い・論点の周辺にとどまる指摘
+- trap: もっともらしく見えるが、実際には矛盾していない指摘
+
+指摘した側の意図や言い回しに引きずられず、発言・主張・証拠品の内容だけで判断してください。reason は日本語で 1〜2 文。
+{% endblock %}
+{% block user %}
+テーマ: {{ topic }}
+
+# 対象の主張({{ target_claim.id }})
+{{ target_claim.text }}
+
+# 主張を含む発言
+{{ target_statement.text }}
+
+{% if evidence %}
+# つきつけた証拠品({{ evidence.id }})
+{{ evidence.title }}: {{ evidence.summary }}
+{% for fact in evidence.verified_facts %}
+- {{ fact.text }}(根拠: {{ fact.quote }})
+{% endfor %}
+{% endif %}
+{% if other_claim %}
+# つきつけた主張({{ other_claim.id }})
+{{ other_claim.text }}
+{% endif %}
+
+# 指摘({{ type_label }})
+{{ pitch }}
+{% endblock %}

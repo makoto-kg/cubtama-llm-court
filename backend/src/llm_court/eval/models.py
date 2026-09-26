@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from llm_court.domain import Event, JudgeScore, LLMCallInfo, Verdict
+from llm_court.eval.analyst_eval import CandidateSetEval
 
 JudgingSource = Literal["debate", "repeat", "reference"]
 
@@ -33,7 +34,9 @@ class DebateRun(BaseModel):
     """ディベートのイベント列(result.json には含めず、debates/*.jsonl に保存する)。"""
     judgings: list[Judging]
     judge_calls: list[LLMCallInfo]
-    """再評価・参照評価の LLM 呼び出し(ディベートのイベントには含まれない)。"""
+    """再評価・参照評価・分析官評価の LLM 呼び出し(ディベートのイベントには含まれない)。"""
+    analyst: list[CandidateSetEval] = []
+    """分析官の候補精度の評価(仕様で有効にしたときのみ)。"""
     error: str | None = None
 
 

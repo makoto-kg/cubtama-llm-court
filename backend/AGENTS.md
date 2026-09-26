@@ -80,3 +80,4 @@ CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(P
 - `GET …/stream` は SSE。`debate`(永続イベント、id=seq)/ `turn` / `token` / `progress` / `task` を送り、判決・中断で閉じる
 - 状態はリクエストのたびにイベントストアから再構築する。API 層で状態を保持しない
 - 手順違反は 409、存在しないセッションは 404
+- 人間 vs LLM: `POST /api/sessions` に `human_side` を付ける。人間の手番では `GET …/choices` で選択肢を取得し(強さは伏せてある)、`POST …/choices {option_id}` で選ぶ。次の人間の手番か判決まで自動で進む

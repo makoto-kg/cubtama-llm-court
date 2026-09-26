@@ -2,9 +2,10 @@
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 from llm_court.api.hub import SessionHub, StreamMessage
+from llm_court.api.redaction import redact_events
 from llm_court.domain import Event, SessionAborted, VerdictDelivered
 from llm_court.engine.store import EventStore
 
@@ -33,7 +34,7 @@ async def session_stream(
     store: EventStore,
     hub: SessionHub,
     keepalive_s: float,
-) -> AsyncIterator[str]:
+) -> AsyncGenerator[str]:
     """`after` より後の履歴を送り、続けて新着を送る。判決・中断を送ったら終わる。
 
     購読を先に始めてから履歴を読むので、その間に追記されたイベントも取りこぼさない
@@ -41,7 +42,7 @@ async def session_stream(
     """
     with hub.subscribe(session_id) as queue:
         last = after
-        for event in await store.load(session_id):
+        for event in redact_events(await store.load(session_id)):
             if event.seq <= last:
                 if is_terminal(event):
                     return  # 終端まで受信済み

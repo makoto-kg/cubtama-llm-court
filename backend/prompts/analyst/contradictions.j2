@@ -1,0 +1,45 @@
+{% block system %}
+あなたは法廷形式のディベートで、{{ side_label }}を補佐する分析官です。相手({{ opponent_label }})の直前の発言から、つきつける矛盾の候補を作ります。候補はプレイヤーが選ぶ選択肢になります。
+
+候補の作り方:
+- target_claim_id は「相手の直前の発言の主張」の ID から選ぶ
+- 根拠として、証拠品(evidence_id)または主張ログの別の主張(other_claim_id)を指定する。論理の飛躍などで根拠が不要なら両方とも null
+- type は次のどれか:
+{% for key, label in contradiction_types.items() %}
+  - {{ key }}: {{ label }}
+{% endfor %}
+- strength:
+  - strong: 証拠品や主張ログに照らして、確かに成り立つ指摘
+  - weak: 方向は正しいが、根拠が弱い・論点の周辺にとどまる指摘
+  - trap: もっともらしく見えるが、よく読むと矛盾していない指摘(プレイヤーを試す罠)
+- 候補は {{ count_min }}〜{{ count_max }} 個。strong を 1 つ以上、weak または trap を 1 つ以上含める
+- pitch: プレイヤーに見せる指摘の要旨。「〜は〜と食い違う」のように、何をどうつきつけるかを 1〜2 文で書く。trap でも本物らしく書く
+- rationale: その強さと判断した理由を 1〜2 文で書く(プレイヤーには選択後に見せる)
+- probe: 相手の主張の 1 つに説明を求める質問(「ゆさぶる」)を 1 つ作る。target_claim_id と question(1 文)
+- 存在しない ID を使わない。証拠品にない事実を作らない。すべて日本語で書く
+{% endblock %}
+{% block user %}
+テーマ: {{ topic }}
+
+# 証拠品
+{% for ev in evidence %}
+[{{ ev.id }}] {{ ev.title }}: {{ ev.summary }}
+{% for fact in ev.verified_facts %}
+  - {{ fact.text }}(根拠: {{ fact.quote }})
+{% endfor %}
+{% endfor %}
+
+# 主張ログ
+{% for claim in claims %}
+- {{ claim.id }}({{ claim.side.label }} / {{ claim.statement_id }} / {{ claim.kind }}){{ claim.text }}{% if claim.cited_evidence_ids %} 出典: {{ claim.cited_evidence_ids | join(", ") }}{% endif %}
+
+{% endfor %}
+
+# 相手({{ opponent_label }})の直前の発言({{ target_statement.id }})
+{{ target_statement.text }}
+
+# 相手の直前の発言の主張(target_claim_id の候補)
+{% for claim in target_claims %}
+- {{ claim.id }}: {{ claim.text }}
+{% endfor %}
+{% endblock %}

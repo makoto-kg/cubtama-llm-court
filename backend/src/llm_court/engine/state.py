@@ -6,6 +6,8 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict
 
 from llm_court.domain import (
+    ChoiceMade,
+    ChoicesPrepared,
     CitationIssue,
     CitationIssuesDetected,
     Claim,
@@ -18,10 +20,12 @@ from llm_court.domain import (
     JudgeScored,
     LLMCallInfo,
     LLMCallRecorded,
+    PenaltyApplied,
     PhaseStarted,
     ResearchReport,
     SessionAborted,
     SessionStarted,
+    Side,
     Statement,
     StatementMade,
     Verdict,
@@ -51,6 +55,12 @@ class DebateState(BaseModel):
     judge_scores: list[JudgeScore] = []
     verdict: Verdict | None = None
     aborted: str | None = None
+    human_side: Side | None = None
+    penalty_gauge: int = 0
+    pending_choices: ChoicesPrepared | None = None
+    """人間の手番で、まだ選ばれていない選択肢。"""
+    choices: list[ChoiceMade] = []
+    """人間が選んだ選択肢の履歴。"""
     llm_calls: list[LLMCallInfo] = []
     last_seq: int = 0
 
@@ -72,6 +82,13 @@ class DebateState(BaseModel):
     @property
     def finished(self) -> bool:
         return self.verdict is not None or self.aborted is not None
+
+    def _chosen_for_current_turn(self) -> bool:
+        """人間側が現在の手番の選択を済ませているか(選択後、まだ発言していない)。"""
+        if not self.choices:
+            return False
+        human_statements = [s for s in self.statements if s.side is self.human_side]
+        return len(self.choices) > len(human_statements)
 
     def statement(self, statement_id: str) -> Statement:
         for s in self.statements:
@@ -98,6 +115,8 @@ class DebateState(BaseModel):
                     "topic": event.topic,
                     "rounds": event.rounds,
                     "models": event.models,
+                    "human_side": event.human_side,
+                    "penalty_gauge": event.penalty_gauge,
                 }
             case EvidenceCollected():
                 update["research"] = event.report
@@ -109,6 +128,8 @@ class DebateState(BaseModel):
                     raise InvalidEventError(
                         f"フェーズ {self.phase} 中に {statement.phase} の発言はできません"
                     )
+                if statement.side is self.human_side and not self._chosen_for_current_turn():
+                    raise InvalidEventError("人間側の発言の前に選択が必要です")
                 update["statements"] = [*self.statements, statement]
                 if event.call_id:
                     update["statement_calls"] = {
@@ -131,6 +152,23 @@ class DebateState(BaseModel):
                 update["verdict"] = event.verdict
             case SessionAborted():
                 update["aborted"] = event.reason
+            case ChoicesPrepared():
+                if event.side is not self.human_side:
+                    raise InvalidEventError("人間の陣営以外に選択肢は示せません")
+                if (event.phase, event.round) != (self.phase, self.round):
+                    raise InvalidEventError("現在のフェーズと選択肢のフェーズが違います")
+                if self.pending_choices is not None:
+                    raise InvalidEventError("未選択の選択肢があります")
+                update["pending_choices"] = event
+            case ChoiceMade():
+                pending = self.pending_choices
+                if pending is None or event.option not in pending.options:
+                    raise InvalidEventError("示されていない選択肢は選べません")
+                update |= {"pending_choices": None, "choices": [*self.choices, event]}
+            case PenaltyApplied():
+                if self.human_side is None:
+                    raise InvalidEventError("人間がいないセッションにペナルティはありません")
+                update["penalty_gauge"] = event.remaining
             case LLMCallRecorded():
                 update["llm_calls"] = [*self.llm_calls, event.call]
         return self.model_copy(update=update)

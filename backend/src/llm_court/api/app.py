@@ -14,7 +14,11 @@ from llm_court.api.hub import SessionHub
 from llm_court.api.routes import router
 from llm_court.api.tasks import TaskConflictError, TaskRunner
 from llm_court.config import Settings
-from llm_court.engine.debate import SessionNotFoundError, SessionStateError
+from llm_court.engine.debate import (
+    InvalidChoiceError,
+    SessionNotFoundError,
+    SessionStateError,
+)
 from llm_court.engine.recorder import BufferedRecorder
 from llm_court.engine.store import EventStore
 from llm_court.llm import LLMClient, PromptLoader
@@ -95,6 +99,10 @@ def create_app(
     @app.exception_handler(SessionStateError)
     async def _state_error(request: Request, exc: SessionStateError) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+    @app.exception_handler(InvalidChoiceError)
+    async def _invalid_choice(request: Request, exc: InvalidChoiceError) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
 
     @app.exception_handler(TaskConflictError)
     async def _task_conflict(request: Request, exc: TaskConflictError) -> JSONResponse:

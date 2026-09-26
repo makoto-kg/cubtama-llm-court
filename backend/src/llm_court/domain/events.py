@@ -8,11 +8,13 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
+from llm_court.domain.choices import ChoiceOption
 from llm_court.domain.debate import (
     CitationIssue,
     Claim,
     DebatePhase,
     JudgeScore,
+    Side,
     Statement,
     Verdict,
 )
@@ -70,6 +72,10 @@ class SessionStarted(EventBase):
     rounds: int
     models: dict[str, str]
     """役割 → モデル ID。"""
+    human_side: Side | None = None
+    """人間が担当する陣営。None なら LLM vs LLM。"""
+    penalty_gauge: int = 0
+    """人間側のペナルティゲージの初期値(開始時のモード定義を記録する)。"""
 
 
 class EvidenceCollected(EventBase):
@@ -117,6 +123,30 @@ class SessionAborted(EventBase):
     reason: str
 
 
+class ChoicesPrepared(EventBase):
+    """人間の手番に示す選択肢(分析官が生成)。"""
+
+    type: Literal["choices_prepared"] = "choices_prepared"
+    phase: DebatePhase
+    round: int
+    side: Side
+    options: list[ChoiceOption]
+    discarded: int = 0
+    """参照が不正で捨てた候補の数。"""
+
+
+class ChoiceMade(EventBase):
+    type: Literal["choice_made"] = "choice_made"
+    option: ChoiceOption
+
+
+class PenaltyApplied(EventBase):
+    type: Literal["penalty_applied"] = "penalty_applied"
+    amount: int
+    remaining: int
+    reason: str
+
+
 class LLMCallRecorded(EventBase):
     type: Literal["llm_call_recorded"] = "llm_call_recorded"
     call: LLMCallInfo
@@ -132,6 +162,9 @@ Event = Annotated[
     | JudgeScored
     | VerdictDelivered
     | SessionAborted
+    | ChoicesPrepared
+    | ChoiceMade
+    | PenaltyApplied
     | LLMCallRecorded,
     Field(discriminator="type"),
 ]

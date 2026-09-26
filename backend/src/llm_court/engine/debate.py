@@ -6,15 +6,20 @@
 
 import asyncio
 import uuid
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Literal
 
+from llm_court.agents.advocate import AdvocateAgent
+from llm_court.agents.analyst import AnalystAgent
 from llm_court.agents.claim_extractor import ClaimExtractorAgent
 from llm_court.agents.debater import DebaterAgent
 from llm_court.agents.judge import JudgeAgent
 from llm_court.config import Role
 from llm_court.domain import (
+    ChoiceMade,
+    ChoiceOption,
+    ChoicesPrepared,
     CitationIssuesDetected,
     Claim,
     ClaimsExtracted,
@@ -24,6 +29,7 @@ from llm_court.domain import (
     JudgeScored,
     LLMCallInfo,
     LLMCallRecorded,
+    PenaltyApplied,
     PhaseStarted,
     ResearchReport,
     SessionAborted,
@@ -31,6 +37,7 @@ from llm_court.domain import (
     Side,
     Statement,
     StatementMade,
+    Verdict,
     VerdictDelivered,
 )
 from llm_court.engine.citations import (
@@ -40,7 +47,7 @@ from llm_court.engine.citations import (
 from llm_court.engine.recorder import BufferedRecorder
 from llm_court.engine.state import DebateState
 from llm_court.engine.store import EventStore
-from llm_court.llm import LLMClient, PromptLoader, StructuredOutputError
+from llm_court.llm import LLMClient, PromptLoader, RenderedPrompt, StructuredOutputError
 from llm_court.modes import DebateMode, Turn
 
 ResearchFn = Callable[[str, Callable[[str], None]], Awaitable[ResearchReport]]
@@ -52,6 +59,10 @@ class DebateError(Exception):
 
 class SessionStateError(DebateError):
     """現在の状態ではその操作をできない(手順違反)。セッションは中断しない。"""
+
+
+class InvalidChoiceError(DebateError):
+    """示されていない選択肢が指定された。"""
 
 
 class SessionNotFoundError(DebateError):
@@ -107,6 +118,8 @@ class DebateEngine:
         self._debater = DebaterAgent(llm, prompts, mode)
         self._claim_extractor = ClaimExtractorAgent(llm, prompts)
         self._judge = JudgeAgent(llm, prompts, mode)
+        self._analyst = AnalystAgent(llm, prompts, mode)
+        self._advocate = AdvocateAgent(llm, prompts, mode)
         self.session_id = ""
         self.state = DebateState()
 
@@ -137,10 +150,16 @@ class DebateEngine:
 
     # --- 進行 ---
 
-    async def start(self, topic: str, rounds: int) -> str:
-        """開廷する(`SessionStarted` を記録する)。セッション ID を返す。"""
+    async def start(self, topic: str, rounds: int, *, human_side: Side | None = None) -> str:
+        """開廷する(`SessionStarted` を記録する)。セッション ID を返す。
+
+        `human_side` を指定すると、その陣営は人間が選択肢を選んで進める。
+        """
         if rounds < 1:
             raise ValueError("rounds は 1 以上にしてください")
+        roles = [Role.RESEARCHER, Role.DEBATER, Role.CLAIM_EXTRACTOR, Role.JUDGE]
+        if human_side is not None:
+            roles += [Role.ANALYST, Role.ADVOCATE]
         self.session_id = uuid.uuid4().hex[:12]
         self.state = DebateState()
         await self._emit(
@@ -148,10 +167,9 @@ class DebateEngine:
                 topic=topic,
                 mode=self._mode.name,
                 rounds=rounds,
-                models={
-                    role.value: self._model(role)
-                    for role in (Role.RESEARCHER, Role.DEBATER, Role.CLAIM_EXTRACTOR, Role.JUDGE)
-                },
+                models={role.value: self._model(role) for role in roles},
+                human_side=human_side,
+                penalty_gauge=self._mode.penalty_gauge if human_side is not None else 0,
             )
         )
         return self.session_id
@@ -188,21 +206,113 @@ class DebateEngine:
             raise SessionStateError("これ以上進める手番がありません")
         assert self.state.topic is not None
         topic = self.state.topic
+        if self.is_human_turn(step) and self.state.pending_choices is not None:
+            raise SessionStateError("人間の選択待ちです。選択肢から選んでください")
         async with self._abort_on_error():
             if step == "verdict":
                 if self.state.phase is not DebatePhase.VERDICT:
                     await self._emit(PhaseStarted(phase=DebatePhase.VERDICT))
                 await self._deliver_verdict(topic)
+            elif self.is_human_turn(step):
+                await self._enter_turn(step)
+                await self._prepare_choices(topic, step)
             else:
-                if (self.state.phase, self.state.round) != (step.phase, step.round):
-                    await self._emit(PhaseStarted(phase=step.phase, round=step.round))
-                await self._statement(topic, step)
+                await self._enter_turn(step)
+                await self._llm_statement(topic, step)
+                # 先行実行: 次が人間の手番なら、相手の発言が終わった時点で選択肢を用意する
+                following = next_step(self.state, self._mode)
+                if isinstance(following, Turn) and self.is_human_turn(following):
+                    await self._enter_turn(following)
+                    await self._prepare_choices(topic, following)
         return step
 
     async def run_to_end(self) -> DebateState:
-        while next_step(self.state, self._mode) is not None:
+        """判決まで進める。人間の手番では選択肢を用意して止まる。"""
+        while (step := next_step(self.state, self._mode)) is not None:
+            if self.is_human_turn(step):
+                if self.state.pending_choices is None:
+                    await self.advance()
+                break
             await self.advance()
         return self.state
+
+    def is_human_turn(self, step: Step | None) -> bool:
+        return isinstance(step, Turn) and step.side is self.state.human_side
+
+    async def choose(self, option_id: str) -> None:
+        """人間が選んだ選択肢で手番を進める(ペナルティの適用と、代弁者による清書)。"""
+        step = next_step(self.state, self._mode)
+        pending = self.state.pending_choices
+        if not isinstance(step, Turn) or not self.is_human_turn(step) or pending is None:
+            raise SessionStateError("人間の選択を受け付ける手番ではありません")
+        option = next((o for o in pending.options if o.id == option_id), None)
+        if option is None:
+            raise InvalidChoiceError(f"選択肢 {option_id} はありません")
+        assert self.state.topic is not None
+        topic = self.state.topic
+        async with self._abort_on_error():
+            await self._emit(ChoiceMade(option=option))
+            penalty = self._mode.penalty_for(option.strength)
+            if penalty:
+                remaining = self.state.penalty_gauge - penalty
+                await self._emit(
+                    PenaltyApplied(
+                        amount=penalty,
+                        remaining=remaining,
+                        reason=f"{option.strength} の指摘を選んだ",
+                    )
+                )
+                if remaining <= 0:
+                    await self._lose_by_penalty(step.side)
+                    return
+            await self._advocate_statement(topic, step, option)
+
+    async def _enter_turn(self, turn: Turn) -> None:
+        if (self.state.phase, self.state.round) != (turn.phase, turn.round):
+            await self._emit(PhaseStarted(phase=turn.phase, round=turn.round))
+
+    async def _prepare_choices(self, topic: str, turn: Turn) -> None:
+        state = self.state
+        self._observer.on_progress("分析官が選択肢を用意しています")
+        number = len(state.statements) + 1
+        prepared = await self._analyst.prepare(
+            topic=topic,
+            side=turn.side,
+            phase=turn.phase,
+            evidence=state.evidence,
+            claims=state.claims,
+            statements=state.statements,
+            issues=state.citation_issues,
+            id_prefix=f"T{number:02d}",
+            seed=f"{self.session_id}-{number}",
+        )
+        await self._flush_llm_calls()
+        await self._emit(
+            ChoicesPrepared(
+                phase=turn.phase,
+                round=turn.round,
+                side=turn.side,
+                options=prepared.options,
+                discarded=prepared.discarded,
+                role=Role.ANALYST.value,
+                model=self._model(Role.ANALYST),
+                prompt_version=prepared.prompt_version,
+            )
+        )
+
+    async def _lose_by_penalty(self, human: Side) -> None:
+        await self._emit(PhaseStarted(phase=DebatePhase.VERDICT))
+        await self._emit(
+            VerdictDelivered(
+                verdict=Verdict(
+                    winner=human.opponent,
+                    agreed=True,
+                    totals=dict.fromkeys(Side, 0.0),
+                    rationale=f"{human.label}のペナルティゲージが尽きたため、{human.opponent.label}の勝ちとします。",
+                    decided_by="penalty",
+                )
+            )
+        )
 
     async def run(
         self, topic: str, rounds: int, *, evidence: ResearchReport | None = None
@@ -240,7 +350,7 @@ class DebateEngine:
             raise DebateError("証拠品が 1 件も集まりませんでした")
         await self._emit(EvidenceCollected(report=evidence, role=role))
 
-    async def _statement(self, topic: str, turn: Turn) -> None:
+    async def _llm_statement(self, topic: str, turn: Turn) -> None:
         state = self.state
         prompt = self._debater.build_prompt(
             topic=topic,
@@ -250,9 +360,33 @@ class DebateEngine:
             claims=state.claims,
             statements=state.statements,
         )
+        await self._statement(topic, turn, prompt, self._debater.stream(prompt), Role.DEBATER)
+
+    async def _advocate_statement(self, topic: str, turn: Turn, option: ChoiceOption) -> None:
+        state = self.state
+        prompt = self._advocate.build_prompt(
+            topic=topic,
+            side=turn.side,
+            phase=turn.phase,
+            option=option,
+            evidence=state.evidence,
+            claims=state.claims,
+            statements=state.statements,
+        )
+        await self._statement(topic, turn, prompt, self._advocate.stream(prompt), Role.ADVOCATE)
+
+    async def _statement(
+        self,
+        topic: str,
+        turn: Turn,
+        prompt: RenderedPrompt,
+        chunks: AsyncIterator[str],
+        role: Role,
+    ) -> None:
+        state = self.state
         self._observer.on_statement_start(turn)
         parts: list[str] = []
-        async for chunk in self._debater.stream(prompt):
+        async for chunk in chunks:
             parts.append(chunk)
             self._observer.on_token(turn, chunk)
         calls = self._recorder.drain()
@@ -275,8 +409,8 @@ class DebateEngine:
             StatementMade(
                 statement=statement,
                 call_id=calls[-1].call_id if calls else None,
-                role=Role.DEBATER.value,
-                model=self._model(Role.DEBATER),
+                role=role.value,
+                model=self._model(role),
                 prompt_version=prompt.version,
             )
         )

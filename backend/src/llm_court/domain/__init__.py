@@ -1,5 +1,12 @@
 """ドメインモデル(Pydantic)。パッケージ内の他モジュールに依存しない。"""
 
+from llm_court.domain.choices import (
+    ChoiceKind,
+    ChoiceOption,
+    ContradictionCandidate,
+    ContradictionType,
+    Strength,
+)
 from llm_court.domain.debate import (
     CitationIssue,
     CitationIssueKind,
@@ -13,6 +20,8 @@ from llm_court.domain.debate import (
 )
 from llm_court.domain.events import (
     EVENT_ADAPTER,
+    ChoiceMade,
+    ChoicesPrepared,
     CitationIssuesDetected,
     ClaimsExtracted,
     Event,
@@ -21,22 +30,37 @@ from llm_court.domain.events import (
     JudgeScored,
     LLMCallInfo,
     LLMCallRecorded,
+    PenaltyApplied,
     PhaseStarted,
     SessionAborted,
     SessionStarted,
     StatementMade,
     VerdictDelivered,
 )
-from llm_court.domain.evidence import Evidence, KeyFact, ResearchReport, SkippedSource
+from llm_court.domain.evidence import (
+    Evidence,
+    KeyFact,
+    ResearchReport,
+    SkippedSource,
+    find_evidence_ids,
+    normalize_citation_text,
+    normalize_evidence_ids,
+)
 
 __all__ = [
     "EVENT_ADAPTER",
+    "ChoiceKind",
+    "ChoiceMade",
+    "ChoiceOption",
+    "ChoicesPrepared",
     "CitationIssue",
     "CitationIssueKind",
     "CitationIssuesDetected",
     "Claim",
     "ClaimKind",
     "ClaimsExtracted",
+    "ContradictionCandidate",
+    "ContradictionType",
     "DebatePhase",
     "Event",
     "EventBase",
@@ -47,6 +71,7 @@ __all__ = [
     "KeyFact",
     "LLMCallInfo",
     "LLMCallRecorded",
+    "PenaltyApplied",
     "PhaseStarted",
     "ResearchReport",
     "SessionAborted",
@@ -55,6 +80,10 @@ __all__ = [
     "SkippedSource",
     "Statement",
     "StatementMade",
+    "Strength",
     "Verdict",
     "VerdictDelivered",
+    "find_evidence_ids",
+    "normalize_citation_text",
+    "normalize_evidence_ids",
 ]

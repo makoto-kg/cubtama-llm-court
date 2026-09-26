@@ -9,6 +9,7 @@ name: gpt-oss-20b vs gemma-4-12b
 rounds: 1
 runs: 1
 judge_repeats: 2
+analyst: false # true にすると分析官の候補精度も評価する(時間がかかる)
 configs:
   - name: gpt-oss-20b
     models: config/models.local.yaml

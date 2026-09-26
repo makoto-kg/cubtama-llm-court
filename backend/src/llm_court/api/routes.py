@@ -7,12 +7,16 @@ from fastapi import APIRouter, Depends, Header, Query, Request, status
 from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from llm_court.api.context import ApiContext
+from llm_court.api.redaction import redact_events
 from llm_court.api.schemas import (
+    ChoicesView,
+    ChooseRequest,
     CreateSessionRequest,
     ErrorResponse,
     SessionListItem,
     SessionView,
     TaskAccepted,
+    choices_view,
     session_status,
     session_view,
 )
@@ -21,6 +25,7 @@ from llm_court.api.tasks import TaskKind
 from llm_court.domain import Event, ResearchReport
 from llm_court.engine.debate import (
     DebateEngine,
+    InvalidChoiceError,
     SessionNotFoundError,
     SessionStateError,
     next_step,
@@ -91,6 +96,15 @@ async def _run_to_end(engine: DebateEngine) -> None:
     await engine.run_to_end()
 
 
+def _choose(option_id: str) -> EngineAction:
+    async def action(engine: DebateEngine) -> None:
+        await engine.choose(option_id)
+        # 次の人間の手番(選択肢を用意して止まる)か判決まで進める
+        await engine.run_to_end()
+
+    return action
+
+
 @router.get("/health", operation_id="health", tags=["system"])
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -105,7 +119,7 @@ async def health() -> dict[str, str]:
 async def create_session(body: CreateSessionRequest, ctx: Ctx) -> SessionView:
     """開廷する。続けて証拠品を用意する(`research` または `evidence`)。"""
     engine = ctx.engine()
-    await engine.start(body.topic, body.rounds)
+    await engine.start(body.topic, body.rounds, human_side=body.human_side)
     return _view(ctx, engine.state)
 
 
@@ -206,6 +220,39 @@ async def run_session(session_id: str, ctx: Ctx) -> TaskAccepted:
 
 
 @router.get(
+    "/sessions/{session_id}/choices",
+    operation_id="getChoices",
+    tags=["human"],
+    responses=_ERRORS,
+)
+async def get_choices(session_id: str, ctx: Ctx) -> ChoicesView:
+    """人間の手番の選択肢。強さ(strong / weak / trap)は選ぶまで伏せる。"""
+    view = choices_view(await _load(ctx, session_id))
+    if view is None:
+        raise SessionStateError("人間の選択待ちではありません")
+    return view
+
+
+@router.post(
+    "/sessions/{session_id}/choices",
+    operation_id="chooseOption",
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["human"],
+    responses={**_ERRORS, 422: {"model": ErrorResponse, "description": "選択肢がない"}},
+)
+async def choose_option(session_id: str, body: ChooseRequest, ctx: Ctx) -> TaskAccepted:
+    """選択肢を選ぶ。代弁者が発言を清書し、次の人間の手番か判決まで進める。"""
+    state = await _load(ctx, session_id)
+    _ensure_idle(ctx, session_id)
+    pending = state.pending_choices
+    if pending is None:
+        raise SessionStateError("人間の選択待ちではありません")
+    if all(o.id != body.option_id for o in pending.options):
+        raise InvalidChoiceError(f"選択肢 {body.option_id} はありません")
+    return _start_task(ctx, session_id, "choice", _choose(body.option_id))
+
+
+@router.get(
     "/sessions/{session_id}/events",
     operation_id="listEvents",
     tags=["logs"],
@@ -218,7 +265,7 @@ async def list_events(
     events = await ctx.store.load(session_id)
     if not events:
         raise SessionNotFoundError(session_id)
-    return [e for e in events if e.seq > after]
+    return [e for e in redact_events(events) if e.seq > after]
 
 
 @router.get(

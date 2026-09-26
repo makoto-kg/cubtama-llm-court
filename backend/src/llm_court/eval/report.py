@@ -10,7 +10,13 @@ from llm_court.domain import Side
 from llm_court.engine.state import DebateState
 from llm_court.engine.store import load_jsonl
 from llm_court.engine.summary import summarize
-from llm_court.eval.metrics import ConfigMetrics, citation_stats, config_metrics, verdict_label
+from llm_court.eval.metrics import (
+    AnalystStats,
+    ConfigMetrics,
+    citation_stats,
+    config_metrics,
+    verdict_label,
+)
 from llm_court.eval.models import EvalResult
 from llm_court.modes import DebateMode
 
@@ -100,6 +106,14 @@ def summary_rows(metrics: Sequence[ConfigMetrics]) -> list[Row]:
         row: Row = {}
         for key, value in m.model_dump().items():
             if key in ("structured_by_role", "verdicts"):
+                continue
+            if key == "analyst":
+                if value is not None:
+                    row |= {
+                        f"analyst_{k}": _round(v) if isinstance(v, float) else v
+                        for k, v in value.items()
+                        if k != "strengths"
+                    }
                 continue
             if key == "citations":
                 row |= {f"citations_{k}": v for k, v in value.items()}
@@ -216,6 +230,10 @@ _SECTIONS: list[tuple[str, list[MetricRow]]] = [
 ]
 
 
+def _strength_counts(stats: AnalystStats) -> str:
+    return " / ".join(str(stats.strengths.get(k, 0)) for k in ("strong", "weak", "trap"))
+
+
 def render_markdown(result: EvalResult, metrics: Sequence[ConfigMetrics]) -> str:
     names = [m.config for m in metrics]
     duration = (result.finished_at - result.started_at).total_seconds()
@@ -244,6 +262,23 @@ def render_markdown(result: EvalResult, metrics: Sequence[ConfigMetrics]) -> str
     for title, rows in _SECTIONS:
         lines += [f"### {title}", "", header, divider]
         lines += [f"| {label} | " + " | ".join(fn(m) for m in metrics) + " |" for label, fn in rows]
+        lines.append("")
+
+    if any(m.analyst for m in metrics):
+        lines += ["### 分析官", "", header, divider]
+        analyst_rows: list[tuple[str, Callable[[AnalystStats], str]]] = [
+            ("候補セット(成功率)", lambda a: f"{a.sets}({_pct(a.success_rate)})"),
+            ("罠の混入率", lambda a: _pct(a.trap_inclusion_rate)),
+            ("強さの分布(strong / weak / trap)", _strength_counts),
+            ("強い候補の妥当性 ↑", lambda a: _pct(a.strong_validity)),
+            ("罠の一致率 ↑", lambda a: _pct(a.trap_agreement)),
+            ("参照不正率 ↓", lambda a: _pct(a.invalid_reference_rate)),
+            ("検証済みの候補", lambda a: str(a.verified)),
+            ("引用捏造の自動候補", lambda a: str(a.rule_candidates)),
+        ]
+        for label, fn in analyst_rows:
+            cells = [fn(m.analyst) if m.analyst else "-" for m in metrics]
+            lines.append(f"| {label} | " + " | ".join(cells) + " |")
         lines.append("")
 
     lines += ["### 役割別の構造化出力", "", "| 構成 | 役割 | 呼び出し | 失敗 | リトライ |"]
@@ -288,6 +323,9 @@ def render_markdown(result: EvalResult, metrics: Sequence[ConfigMetrics]) -> str
         "引いた証拠品の検証済み事実・要約に見つからないものの割合",
         "- 出典のない発言の率: 出典が 1 つもない発言 ÷ 発言数",
         "- レイテンシ: 論者の発言ごとの計測。TTFT は思考部分を含む最初のトークンまで",
+        "- 分析官: 反論・最終弁論の各発言に対し、相手側の立場で矛盾候補を作らせた。"
+        "罠の混入率は trap を含む候補セットの割合。強い候補の妥当性・罠の一致率は、"
+        "検証役(各構成の judge 役)の独立判定との一致",
         "",
         "## 注意",
         "",

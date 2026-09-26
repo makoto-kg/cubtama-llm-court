@@ -6,13 +6,16 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
+from llm_court.agents.analyst import AnalystAgent
 from llm_court.agents.judge import JudgeAgent
+from llm_court.agents.verifier import CandidateVerifier
 from llm_court.config import ModelsConfig, Role, load_models_config
 from llm_court.domain import LLMCallInfo, ResearchReport, Side
 from llm_court.engine.debate import DebateEngine
 from llm_court.engine.recorder import BufferedRecorder
 from llm_court.engine.state import DebateState
 from llm_court.engine.store import EventStore, export_jsonl
+from llm_court.eval.analyst_eval import CandidateSetEval, evaluate_analyst
 from llm_court.eval.models import DebateRun, EvalResult, Judging, JudgingSource
 from llm_court.eval.spec import EvalSpec
 from llm_court.llm import LLMClient, LLMConnectionError, LLMError, PromptLoader
@@ -139,6 +142,7 @@ class EvalHarness:
 
         judgings: list[Judging] = []
         judge_calls: list[LLMCallInfo] = []
+        analyst_results: list[CandidateSetEval] = []
         if state.verdict is not None:
             judgings.append(
                 Judging(source="debate", scores=state.judge_scores, verdict=state.verdict)
@@ -150,6 +154,14 @@ class EvalHarness:
                 if judging is not None:
                     judgings.append(judging)
             judge_calls += recorder.drain()
+            if spec.analyst:
+                progress("分析官の候補を評価しています")
+                analyst_results = await evaluate_analyst(
+                    state,
+                    AnalystAgent(client, self._prompts, self._mode),
+                    CandidateVerifier(client, self._prompts, self._mode),
+                )
+                judge_calls += recorder.drain()
             if reference is not None:
                 progress("参照用裁判長の評価")
                 ref_client, ref_recorder = reference
@@ -167,6 +179,7 @@ class EvalHarness:
             events=events,
             judgings=judgings,
             judge_calls=judge_calls,
+            analyst=analyst_results,
             error=error,
         )
 

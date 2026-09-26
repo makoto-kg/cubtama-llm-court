@@ -11,7 +11,7 @@ LLMはOpenAI互換APIのみに依存し、完全ローカル(LM Studio等)での
 
 ## フェーズ状況
 
-現在のフェーズ: **Phase 5 完了(Phase 6 未着手)**
+現在のフェーズ: **Phase 6 完了(Phase 7 未着手)**
 
 - [x] Phase 0: リポジトリ基盤
 - [x] Phase 1: LLMクライアント層
@@ -19,7 +19,7 @@ LLMはOpenAI互換APIのみに依存し、完全ローカル(LM Studio等)での
 - [x] Phase 3: ディベートエンジンMVP(LLM vs LLM、CLI) ← 最初のマイルストーン
 - [x] Phase 4: 評価ハーネス
 - [x] Phase 5: API化
-- [ ] Phase 6: 分析官と人間 vs LLM
+- [x] Phase 6: 分析官と人間 vs LLM
 - [ ] Phase 7: Frontend MVP
 - [ ] Phase 8: 裁判型 — 事件生成パイプライン
 - [ ] Phase 9: 裁判型 — プレイ

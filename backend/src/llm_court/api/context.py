@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from llm_court.api.hub import SessionHub, StreamMessage
+from llm_court.api.redaction import redact_live
 from llm_court.api.tasks import TaskRunner
 from llm_court.config import Settings
 from llm_court.domain import Event, ResearchReport
@@ -26,6 +27,7 @@ class HubObserver(DebateObserver):
         self._hub.publish(self._engine.session_id, message)
 
     def on_event(self, event: Event) -> None:
+        event = redact_live(event)
         self._publish(
             StreamMessage(event="debate", data=event.model_dump(mode="json"), id=event.seq)
         )

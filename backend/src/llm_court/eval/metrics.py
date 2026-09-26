@@ -126,6 +126,55 @@ def citation_stats(state: DebateState) -> CitationStats:
     )
 
 
+# --- 分析官 ---
+
+
+class AnalystStats(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    sets: int
+    """候補セットを作ろうとした回数。"""
+    success_rate: float | None
+    trap_inclusion_rate: float | None
+    """罠(trap)を含む候補セットの割合。"""
+    strengths: dict[str, int]
+    """分析官が付けた強さの分布(LLM が作った候補のみ)。"""
+    invalid_reference_rate: float | None
+    """参照が不正で捨てた候補 ÷(捨てた候補 + 残った候補)。"""
+    strong_validity: float | None
+    """分析官が strong とした候補のうち、検証役も strong とした割合。"""
+    trap_agreement: float | None
+    """分析官が trap とした候補のうち、検証役も trap とした割合。"""
+    verified: int
+    """検証役の判定が得られた候補の数。"""
+    rule_candidates: int
+    """引用の機械検査から自動で作った候補の数。"""
+
+
+def analyst_stats(runs: Iterable[DebateRun]) -> AnalystStats | None:
+    sets = [s for run in runs for s in run.analyst]
+    if not sets:
+        return None
+    ok = [s for s in sets if s.success]
+    llm = [c for s in ok for c in s.candidates if c.source == "analyst"]
+    discarded = sum(s.discarded for s in ok)
+    strong = [c for c in llm if c.analyst_strength == "strong" and c.verifier_strength]
+    traps = [c for c in llm if c.analyst_strength == "trap" and c.verifier_strength]
+    return AnalystStats(
+        sets=len(sets),
+        success_rate=ratio(len(ok), len(sets)),
+        trap_inclusion_rate=ratio(
+            sum(any(c.analyst_strength == "trap" for c in s.candidates) for s in ok), len(ok)
+        ),
+        strengths=dict(Counter(c.analyst_strength for c in llm)),
+        invalid_reference_rate=ratio(discarded, discarded + len(llm)),
+        strong_validity=ratio(sum(c.verifier_strength == "strong" for c in strong), len(strong)),
+        trap_agreement=ratio(sum(c.verifier_strength == "trap" for c in traps), len(traps)),
+        verified=sum(c.verifier_strength is not None for c in llm),
+        rule_candidates=sum(c.source == "rule" for s in ok for c in s.candidates),
+    )
+
+
 # --- 構成ごとの集計 ---
 
 
@@ -178,6 +227,8 @@ class ConfigMetrics(BaseModel):
     length_ratio: float | None
     """発言の字数 ÷ フェーズの目安字数 の平均。"""
     claims_per_statement: float | None
+    # 分析官(評価仕様で有効にしたときのみ)
+    analyst: AnalystStats | None = None
 
 
 def _all_calls(runs: Iterable[DebateRun]) -> list[LLMCallInfo]:
@@ -244,4 +295,5 @@ def config_metrics(config: str, runs: Sequence[DebateRun], mode: DebateMode) -> 
         mean_chars=mean(len(st.text) for st in statements),
         length_ratio=mean(len(st.text) / mode.target_chars[st.phase] for st in statements),
         claims_per_statement=ratio(sum(len(s.claims) for s in states), len(statements)),
+        analyst=analyst_stats(runs),
     )

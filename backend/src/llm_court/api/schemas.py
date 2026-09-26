@@ -5,8 +5,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from llm_court.api.redaction import redact_choices
 from llm_court.api.tasks import TaskView
 from llm_court.domain import (
+    ChoiceOption,
     CitationIssue,
     Claim,
     DebatePhase,
@@ -26,6 +28,26 @@ SessionStatus = Literal["awaiting_evidence", "ready", "in_progress", "finished",
 class CreateSessionRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=200, description="論題")
     rounds: int = Field(default=3, ge=1, le=10, description="反論の往復数")
+    human_side: Side | None = Field(
+        default=None, description="人間が担当する陣営。省略すると LLM vs LLM"
+    )
+
+
+class ChooseRequest(BaseModel):
+    option_id: str = Field(min_length=1, description="選ぶ選択肢の ID")
+
+
+class ChoicesView(BaseModel):
+    """人間の手番で示されている選択肢(強さは伏せてある)。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    session_id: str
+    phase: DebatePhase
+    round: int
+    side: Side
+    options: list[ChoiceOption]
+    penalty_gauge: int
 
 
 class NextTurn(BaseModel):
@@ -37,6 +59,8 @@ class NextTurn(BaseModel):
     phase: DebatePhase
     round: int
     side: Side | None = None
+    by_human: bool = False
+    """人間の手番(選択肢から選ぶ)か。"""
 
 
 class SessionListItem(BaseModel):
@@ -67,6 +91,12 @@ class SessionView(BaseModel):
     judge_scores: list[JudgeScore]
     verdict: Verdict | None
     aborted: str | None
+    human_side: Side | None
+    penalty_gauge: int
+    pending_choices: ChoicesView | None
+    """人間の選択待ちの選択肢(強さは伏せてある)。"""
+    choices: list[ChoiceOption]
+    """人間が選んだ選択肢の履歴(強さを公開)。"""
 
 
 class TaskAccepted(BaseModel):
@@ -97,7 +127,13 @@ def session_view(state: DebateState, mode: DebateMode, task: TaskView | None) ->
     if step == "verdict":
         next_turn = NextTurn(kind="verdict", phase=DebatePhase.VERDICT, round=0)
     elif step is not None:
-        next_turn = NextTurn(kind="statement", phase=step.phase, round=step.round, side=step.side)
+        next_turn = NextTurn(
+            kind="statement",
+            phase=step.phase,
+            round=step.round,
+            side=step.side,
+            by_human=step.side is state.human_side,
+        )
     return SessionView(
         session_id=state.session_id,
         topic=state.topic,
@@ -115,4 +151,23 @@ def session_view(state: DebateState, mode: DebateMode, task: TaskView | None) ->
         judge_scores=state.judge_scores,
         verdict=state.verdict,
         aborted=state.aborted,
+        human_side=state.human_side,
+        penalty_gauge=state.penalty_gauge,
+        pending_choices=choices_view(state),
+        choices=[c.option for c in state.choices],
+    )
+
+
+def choices_view(state: DebateState) -> ChoicesView | None:
+    pending = state.pending_choices
+    if pending is None or state.session_id is None:
+        return None
+    redacted = redact_choices(pending)
+    return ChoicesView(
+        session_id=state.session_id,
+        phase=redacted.phase,
+        round=redacted.round,
+        side=redacted.side,
+        options=redacted.options,
+        penalty_gauge=state.penalty_gauge,
     )

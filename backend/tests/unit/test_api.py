@@ -11,6 +11,7 @@ from fastapi import FastAPI
 
 from llm_court.api import create_app
 from llm_court.api.context import ApiContext
+from llm_court.api.sse import session_stream
 from llm_court.config import ResearchSettings, Settings
 from llm_court.domain import ResearchReport
 from llm_court.llm import ChatRequest
@@ -114,6 +115,7 @@ async def test_step_by_step_until_verdict(api: Api, research_report: ResearchRep
         "phase": "opening",
         "round": 0,
         "side": "affirmative",
+        "by_human": False,
     }
     response = await api.client.put(
         f"/api/sessions/{session_id}/evidence",
@@ -368,3 +370,116 @@ def test_openapi_schema() -> None:
     events = schema["paths"]["/api/sessions/{session_id}/events"]["get"]
     items = events["responses"]["200"]["content"]["application/json"]["schema"]["items"]
     assert items["discriminator"]["propertyName"] == "type"
+
+
+# --- 人間 vs LLM ---
+
+
+async def create_human(api: Api, side: str = "negative") -> str:
+    response = await api.client.post(
+        "/api/sessions", json={"topic": "論題", "rounds": 1, "human_side": side}
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["session_id"]
+
+
+async def test_human_game_via_api(api: Api, research_report: ResearchReport) -> None:
+    session_id = await create_human(api)
+    await put_evidence(api, session_id, research_report)
+    response = await api.client.get(f"/api/sessions/{session_id}/choices")
+    assert response.status_code == 409  # まだ選択待ちではない
+
+    assert (await api.client.post(f"/api/sessions/{session_id}/run")).status_code == 202
+    await api.wait(session_id)
+
+    moves = 0
+    while True:
+        view = (await api.client.get(f"/api/sessions/{session_id}")).json()
+        if view["status"] == "finished":
+            break
+        assert view["next_turn"]["by_human"] is True
+        choices = (await api.client.get(f"/api/sessions/{session_id}/choices")).json()
+        assert choices == view["pending_choices"]
+        # 強さ・判断理由・由来は伏せてある
+        for option in choices["options"]:
+            assert option["source"] is None
+            if option["contradiction"]:
+                assert option["contradiction"]["strength"] is None
+                assert option["contradiction"]["rationale"] is None
+        # イベント一覧でも伏せてある
+        events = (await api.client.get(f"/api/sessions/{session_id}/events")).json()
+        prepared = [e for e in events if e["type"] == "choices_prepared"][-1]
+        assert all(o["source"] is None for o in prepared["options"])
+
+        response = await api.client.post(
+            f"/api/sessions/{session_id}/choices", json={"option_id": "nope"}
+        )
+        assert response.status_code == 422
+        option = choices["options"][-1]  # 反論では「ゆさぶる」(減点なし)
+        response = await api.client.post(
+            f"/api/sessions/{session_id}/choices", json={"option_id": option["id"]}
+        )
+        assert response.status_code == 202, response.text
+        assert response.json()["task"]["kind"] == "choice"
+        await api.wait(session_id)
+        moves += 1
+
+    assert moves == 3
+    assert view["verdict"]["decided_by"] == "judge"
+    assert view["penalty_gauge"] == 5
+    assert [c["kind"] for c in view["choices"]] == ["argument", "probe", "argument"]
+    assert view["choices"][0]["source"] == "analyst"  # 選んだ後は公開
+
+    # 選択済みの選択肢は、イベント一覧でも公開される
+    events = (await api.client.get(f"/api/sessions/{session_id}/events")).json()
+    rebuttal = [e for e in events if e["type"] == "choices_prepared"][1]
+    assert {o["contradiction"]["strength"] for o in rebuttal["options"] if o["contradiction"]} == {
+        "strong",
+        "weak",
+        "trap",
+    }
+
+
+async def test_sse_redacts_pending_choices(api: Api, research_report: ResearchReport) -> None:
+    session_id = await create_human(api)
+    await put_evidence(api, session_id, research_report)
+    await api.client.post(f"/api/sessions/{session_id}/run")
+    await api.wait(session_id)
+    await api.client.post(
+        f"/api/sessions/{session_id}/choices",
+        json={
+            "option_id": (await api.client.get(f"/api/sessions/{session_id}/choices")).json()[
+                "options"
+            ][0]["id"]
+        },
+    )
+    await api.wait(session_id)  # 反論の選択待ち
+
+    # 選択待ちのまま SSE を開くと、履歴の選択肢は伏せられている。判決まで閉じないため、
+    # ジェネレーターを直接読み、履歴の分だけ取り出す
+    history = len(await api.ctx.store.load(session_id))
+    stream = session_stream(
+        session_id=session_id,
+        after=0,
+        store=api.ctx.store,
+        hub=api.ctx.hub,
+        keepalive_s=api.ctx.settings.api_sse_keepalive_s,
+    )
+    chunks = [await anext(stream) for _ in range(history)]
+    await stream.aclose()
+    prepared = [
+        m["data"]
+        for m in parse_sse("".join(chunks))
+        if m["event"] == "debate" and m["data"]["type"] == "choices_prepared"
+    ]
+    assert prepared[0]["options"][0]["source"] == "analyst"  # 選択済み(冒頭陳述)
+    assert all(o["source"] is None for o in prepared[-1]["options"])  # 未選択(反論)
+
+
+async def test_llm_session_has_no_choices(api: Api, research_report: ResearchReport) -> None:
+    session_id = await create(api)
+    await put_evidence(api, session_id, research_report)
+    response = await api.client.post(
+        f"/api/sessions/{session_id}/choices", json={"option_id": "T01-1"}
+    )
+    assert response.status_code == 409

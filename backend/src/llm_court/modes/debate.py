@@ -78,6 +78,25 @@ class DebateMode(BaseModel):
         DebatePhase.CLOSING: 350,
     }
 
+    # --- 人間 vs LLM ---
+    penalty_gauge: int = 5
+    """人間側のペナルティゲージの初期値。0 以下で敗北。"""
+    penalties: dict[str, int] = {"strong": 0, "weak": 1, "trap": 2}
+    """選んだ候補の強さごとの減少量。"""
+    contradiction_count: tuple[int, int] = (3, 5)
+    """分析官に出させる矛盾候補の数(最小, 最大)。"""
+    argument_count: int = 3
+    """冒頭陳述・最終弁論で示す論点の方針の数。"""
+    choice_kinds: dict[DebatePhase, str] = {
+        DebatePhase.OPENING: "argument",
+        DebatePhase.REBUTTAL: "contradiction",
+        DebatePhase.CLOSING: "argument",
+    }
+    """フェーズごとの選択肢の種類(反論では contradiction に probe を 1 つ加える)。"""
+
+    def penalty_for(self, strength: str | None) -> int:
+        return self.penalties.get(strength or "", 0)
+
     def schedule(self, rounds: int) -> list[Turn]:
         """冒頭陳述 → 反論 × rounds → 最終弁論。各フェーズとも肯定側が先。"""
         turns = [Turn(phase=DebatePhase.OPENING, round=0, side=s) for s in Side]

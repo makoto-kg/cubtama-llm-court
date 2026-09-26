@@ -1,33 +1,19 @@
 """発言中の出典(EV-01 等の証拠品 ID)と引用(「」)の規則ベースの検査。"""
 
 import re
-import unicodedata
 
-from llm_court.domain import CitationIssue, Evidence
+from llm_court.domain import (
+    CitationIssue,
+    Evidence,
+    find_evidence_ids,
+    normalize_citation_text,
+    normalize_evidence_ids,
+)
 from llm_court.research.quotes import verify_quote
 
-# 括弧の有無・種類を問わず証拠品 ID を出典とみなす(モデルは [EV-01] 以外の書き方もする)
-_EVIDENCE_ID = re.compile(r"(?<![A-Za-z])EV\s*-\s*(\d+)", re.IGNORECASE)
-# NFKC で ASCII にならないハイフン・ダッシュ類(gpt-oss は U+2011 を使う)
-_DASHES = str.maketrans(dict.fromkeys("\u2010\u2011\u2012\u2013\u2014\u2015\u2212", "-"))
 _QUOTE = re.compile(r"「([^「」]{8,})」")
 _SENTENCE_END = re.compile(r"[。！？!?\n]")
 _TRAILING_CITATIONS = re.compile(r"(?:\s*[\[［【][^\]］】]*[\]］】])+")
-
-
-def _normalize_text(text: str) -> str:
-    """NFKC とダッシュ類の統一。文字数は変わらない(位置の対応を保つ)ことに注意。"""
-    return unicodedata.normalize("NFKC", text).translate(_DASHES)
-
-
-def _normalize_id(number: str) -> str:
-    return f"EV-{int(number):02d}"
-
-
-def normalize_evidence_ids(ids: list[str]) -> list[str]:
-    """`ev-1`・`EV-01` 等の表記ゆれを `EV-01` 形式にそろえる(ID でないものは捨てる)。"""
-    normalized = _normalize_text(" ".join(ids))
-    return list(dict.fromkeys(_normalize_id(n) for n in _EVIDENCE_ID.findall(normalized)))
 
 
 def extract_citations(text: str) -> list[str]:
@@ -35,8 +21,7 @@ def extract_citations(text: str) -> list[str]:
 
     `[EV-01]`・`【EV-01】`・`(EV‑01)`・`EV-01によれば` のように括弧の有無・種類を問わない。
     """
-    ids = [_normalize_id(n) for n in _EVIDENCE_ID.findall(_normalize_text(text))]
-    return list(dict.fromkeys(ids))
+    return find_evidence_ids(text)
 
 
 def _sentence_span(text: str, start: int, end: int) -> tuple[int, int]:
@@ -59,7 +44,7 @@ def _evidence_corpus(evidence: Evidence) -> str:
 
 def _checked_quotes(text: str, evidence: dict[str, Evidence]) -> list[tuple[str, list[str]]]:
     """照合の対象になる「」の引用と、その文で引いた(実在する)証拠品 ID の組。"""
-    normalized = _normalize_text(text)
+    normalized = normalize_citation_text(text)
     result: list[tuple[str, list[str]]] = []
     for match in _QUOTE.finditer(normalized):
         head, tail = _sentence_span(normalized, match.start(), match.end())
@@ -115,3 +100,11 @@ def check_citations(
             )
         )
     return issues
+
+
+__all__ = [
+    "check_citations",
+    "count_checked_quotes",
+    "extract_citations",
+    "normalize_evidence_ids",
+]

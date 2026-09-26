@@ -109,3 +109,5 @@ class Verdict(_Frozen):
     totals: dict[Side, float]
     """評価ごとの合計点の平均。"""
     rationale: str
+    decided_by: Literal["judge", "penalty"] = "judge"
+    """judge: 裁判長の採点 / penalty: 人間側のペナルティゲージが尽きた。"""
