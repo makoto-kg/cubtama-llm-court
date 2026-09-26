@@ -198,6 +198,11 @@ def to_hidden_truth(
                 learning_point_ids=refs,
             )
         )
+    used = {lp for lie in lies for lp in lie.learning_point_ids}
+    for lp_id in sorted(lp_ids - used):
+        problems.append(
+            f"学習ポイント {lp_id} を見抜くのに使う嘘がありません(すべての学習ポイントを使う)"
+        )
     if problems:
         raise DraftError(problems)
     names = {p.key: p.name for p in output.people}
@@ -337,7 +342,9 @@ def to_materials(
         if c.evidence_key not in evidence_ids:
             problems.append(f"矛盾 {c.lie_id} の証拠品 {c.evidence_key} が証拠品一覧にありません")
             continue
-        refs = [lp for lp in c.learning_point_ids if lp in lp_ids]
+        # 嘘に設定した学習ポイントを必ず引き継ぐ(資料の段階で書き漏れても対応が崩れないように)
+        lie_lps = lie_by_id[c.lie_id].learning_point_ids if c.lie_id in lie_by_id else []
+        refs = list(dict.fromkeys([*lie_lps, *(lp for lp in c.learning_point_ids if lp in lp_ids)]))
         if not refs:
             problems.append(f"矛盾 {c.lie_id} が既知の学習ポイントを参照していません")
             continue

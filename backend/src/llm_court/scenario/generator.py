@@ -251,10 +251,12 @@ class CaseGenerator:
             step = earliest_step(issues)
             if step is None:
                 progress(f"solver で検証しています({self._settings.solver_runs} 回)")
-                validation = await self._solver.validate(case, self._settings.solver_runs, issues)
+                validation = await self._solver.validate(
+                    case, self._settings.solver_runs, issues, self._settings.min_solve_rate
+                )
                 case = case.model_copy(update={"validation": validation})
                 if validation.solved:
-                    progress("solver が解けました")
+                    progress(f"solver が解けました(解答率 {validation.solve_rate:.0%})")
                     break
                 feedback = _solver_feedback(case)
                 step = "materials"
@@ -281,10 +283,12 @@ class CaseGenerator:
         assert case is not None
         return case.model_copy(update={"generation": self._generation(tracker, started)})
 
-    async def validate(self, case: Case) -> Case:
+    async def validate(self, case: Case, runs: int | None = None) -> Case:
         """保存済みの事件を検証し直す(整合性チェックと solver)。"""
         issues = check_case(case, self._mode)
-        validation = await self._solver.validate(case, self._settings.solver_runs, issues)
+        validation = await self._solver.validate(
+            case, runs or self._settings.solver_runs, issues, self._settings.min_solve_rate
+        )
         return case.model_copy(update={"validation": validation})
 
     def _assemble(
@@ -372,8 +376,13 @@ def _solver_feedback(case: Case) -> list[str]:
                 f"{c.evidence_id} の記載に、学習ポイントの知識を当てはめると食い違うとわかる"
                 "具体的な数値・日時・条件を書いてください"
             )
-    if not any(r.answer_correct for r in runs):
+    wrong_answers = [r for r in runs if not r.answer_correct]
+    if wrong_answers:
+        detected = any(r.steps is not None for r in wrong_answers)
         problems.append(
-            "最後の問いに正答できませんでした。問いと選択肢を、矛盾を解けば一つに決まる形にしてください"
+            f"最後の問いに {len(runs)} 回中 {len(wrong_answers)} 回誤答しました"
+            + ("(矛盾をすべて見つけた回でも誤答)" if detected else "")
+            + "。問いは評価や程度(「最も重大な」など)を問わず、矛盾を解けば一つに決まる事実"
+            "(誰が・いつ・何を)を問う形にし、正解以外の選択肢は矛盾から明確に否定できるものにしてください"
         )
     return problems

@@ -39,8 +39,10 @@ class ScenarioSettings(BaseModel):
     """整合性チェックや solver 検証に失敗したときに作り直す上限回数。"""
     draft_retries: int = Field(default=2, ge=0)
     """各段階の出力の参照が不正なとき、問題点を伝えて作り直す上限回数。"""
-    solver_runs: int = Field(default=2, ge=1)
-    """solver に解かせる回数(一意性の確認のため複数回)。"""
+    solver_runs: int = Field(default=3, ge=1)
+    """solver に解かせる回数。solver の結果は揺れるため複数回解かせ、解答率で判定する。"""
+    min_solve_rate: float = Field(default=0.6, ge=0.0, le=1.0)
+    """「解ける」とみなす解答率(解けた回 ÷ 試行回数)の下限。"""
 
 
 class Settings(BaseSettings):

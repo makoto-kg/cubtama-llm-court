@@ -51,8 +51,16 @@ def score(case: Case, output: SolverOutput) -> SolverRun:
     )
 
 
-def summarize_runs(runs: list[SolverRun], issues: list[CheckIssue]) -> CaseValidation:
-    solved = any(r.solved for r in runs)
+def summarize_runs(
+    runs: list[SolverRun],
+    issues: list[CheckIssue],
+    *,
+    attempted: int | None = None,
+    min_solve_rate: float = 1.0,
+) -> CaseValidation:
+    """solver の結果をまとめる。`attempted` は試行回数(答えを返せなかった回を含む)。"""
+    attempted = len(runs) if attempted is None else attempted
+    solve_rate = sum(r.solved for r in runs) / attempted if attempted else 0.0
     unique = bool(runs) and all(
         r.answer_index == runs[0].answer_index
         and set(r.found) == set(runs[0].found)
@@ -64,8 +72,12 @@ def summarize_runs(runs: list[SolverRun], issues: list[CheckIssue]) -> CaseValid
         validated_at=datetime.now(UTC),
         issues=issues,
         solver_runs=runs,
-        solved=solved,
-        solve_rate=sum(r.solved for r in runs) / len(runs) if runs else 0.0,
+        solved=attempted > 0 and solve_rate >= min_solve_rate,
+        solve_rate=solve_rate,
+        detect_rate=sum(r.steps is not None for r in runs) / attempted if attempted else 0.0,
+        answer_rate=sum(r.answer_correct for r in runs) / attempted if attempted else 0.0,
+        attempted_runs=attempted,
+        min_solve_rate=min_solve_rate,
         unique=unique,
         min_steps=min(steps) if steps else None,
     )
@@ -86,6 +98,13 @@ class CaseSolver:
             return None  # 失敗は計測記録に残る
         return score(case, result.value)
 
-    async def validate(self, case: Case, runs: int, issues: list[CheckIssue]) -> CaseValidation:
+    async def validate(
+        self, case: Case, runs: int, issues: list[CheckIssue], min_solve_rate: float
+    ) -> CaseValidation:
         results = await asyncio.gather(*(self.solve_once(case) for _ in range(runs)))
-        return summarize_runs([r for r in results if r is not None], issues)
+        return summarize_runs(
+            [r for r in results if r is not None],
+            issues,
+            attempted=runs,
+            min_solve_rate=min_solve_rate,
+        )

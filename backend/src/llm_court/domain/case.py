@@ -170,9 +170,16 @@ class CaseValidation(_Frozen):
     issues: list[CheckIssue]
     solver_runs: list[SolverRun]
     solved: bool
-    """全矛盾を見つけ、問いに正答した回があるか。"""
+    """解答率が `min_solve_rate` 以上か(1 回だけ偶然解けた事件を合格にしない)。"""
     solve_rate: float = 0.0
-    """解けた回の割合(solver の結果は揺れるため、安定性の目安にする)。"""
+    """全矛盾を見つけ、問いに正答した回 ÷ 試行回数(答えを返せなかった回も分母に含む)。"""
+    detect_rate: float = 0.0
+    """全矛盾を見つけた回 ÷ 試行回数(問いの正誤を問わない)。"""
+    answer_rate: float = 0.0
+    """問いに正答した回 ÷ 試行回数。"""
+    attempted_runs: int = 0
+    min_solve_rate: float = 0.0
+    """判定に使った解答率の下限。"""
     unique: bool
     """すべての回で同じ答えになり、余分な指摘がないか。"""
     min_steps: int | None

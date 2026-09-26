@@ -40,6 +40,7 @@ def make_generator(
     *,
     max_regenerations: int = 2,
     draft_retries: int = 1,
+    solver_runs: int = 2,
     research: Any = None,
 ) -> CaseGenerator:
     fake = FakeChatBackend(responder=responder)
@@ -57,7 +58,9 @@ def make_generator(
         prompts=prompts,
         mode=TRIAL_MODE,
         settings=ScenarioSettings(
-            max_regenerations=max_regenerations, draft_retries=draft_retries, solver_runs=2
+            max_regenerations=max_regenerations,
+            draft_retries=draft_retries,
+            solver_runs=solver_runs,
         ),
         research=research,
     )
@@ -185,6 +188,7 @@ async def test_regenerates_materials_when_unsolved(
     assert responder.calls["HiddenTruthOutput"] == 1
     feedback = responder.requests["MaterialsOutput"][1].messages[0].content
     assert "嘘に気づかれませんでした" in feedback
+    assert "最後の問いに 2 回中 2 回誤答しました。問いは評価や程度" in feedback
     assert "嘘でない証言「結果は 4 月 2 日に届きました」が CE-04 と矛盾して見えました" in feedback
     assert case.generation is not None
     assert case.generation.regenerations["round:materials"] == 1
@@ -193,19 +197,46 @@ async def test_regenerates_materials_when_unsolved(
 async def test_check_failure_regenerates_earliest_step(
     prompts: PromptLoader, research_report: ResearchReport
 ) -> None:
-    # 学習ポイント LP-02 を使う矛盾がない(対応漏れ)→ 規則のチェックで資料を作り直す
-    unused = copy.deepcopy(MATERIALS)
-    unused["contradictions"][1]["learning_point_ids"] = ["LP-01"]
+    # 公開する概要に非公開の ID が入る → 規則のチェックで資料を作り直す
+    leaking = copy.deepcopy(MATERIALS)
+    leaking["overview"] = "L-01 の嘘を暴く事件"
 
     def materials(n: int, _r: ChatRequest) -> FakeResponse:
-        return text(unused if n == 0 else MATERIALS)
+        return text(leaking if n == 0 else MATERIALS)
 
     responder = CaseResponder({"MaterialsOutput": materials})
     case = await generate(prompts, research_report, responder)
     assert case.validation is not None and case.validation.solved
     feedback = responder.requests["MaterialsOutput"][1].messages[0].content
-    assert "LP-02 がどの矛盾にも使われていません" in feedback
+    assert "公開する文に非公開の ID があります" in feedback
     assert responder.calls["SolverOutput"] == 2  # チェックに失敗した回は solver にかけない
+
+
+async def test_contradiction_inherits_lie_learning_points(
+    prompts: PromptLoader, research_report: ResearchReport
+) -> None:
+    # 資料の段階で学習ポイントを書き漏れても、嘘に設定した学習ポイントを引き継ぐ
+    missing = copy.deepcopy(MATERIALS)
+    missing["contradictions"][1]["learning_point_ids"] = ["LP-01"]
+    responder = CaseResponder({"MaterialsOutput": lambda _n, _r: text(missing)})
+    case = await generate(prompts, research_report, responder)
+    assert case.contradictions[1].learning_point_ids == ["LP-02", "LP-01"]
+    assert check_case(case, TRIAL_MODE) == []
+
+
+async def test_unused_learning_point_is_retried_in_hidden_truth(
+    prompts: PromptLoader, research_report: ResearchReport
+) -> None:
+    only_lp1 = copy.deepcopy(HIDDEN_TRUTH)
+    only_lp1["lies"][1]["learning_point_ids"] = ["LP-01"]
+
+    def hidden(n: int, _r: ChatRequest) -> FakeResponse:
+        return text(only_lp1 if n == 0 else HIDDEN_TRUTH)
+
+    responder = CaseResponder({"HiddenTruthOutput": hidden})
+    await generate(prompts, research_report, responder)
+    feedback = responder.requests["HiddenTruthOutput"][1].messages[0].content
+    assert "学習ポイント LP-02 を見抜くのに使う嘘がありません" in feedback
 
 
 async def test_duplicate_contradiction_is_retried_in_draft(
@@ -360,8 +391,18 @@ async def test_score(prompts: PromptLoader, research_report: ResearchReport) -> 
     validation = summarize_runs([run, score(case, SolverOutput.model_validate(SOLVED))], [])
     assert validation.solved and not validation.unique  # 余分な指摘がある
     assert validation.solve_rate == 1.0
-    mixed = summarize_runs([run, unsolved], [])
-    assert mixed.solved and mixed.solve_rate == 0.5
+    # 1 回だけ偶然解けた事件は、基準の解答率に届かなければ合格にしない
+    mixed = summarize_runs([run, unsolved], [], min_solve_rate=0.6)
+    assert mixed.solve_rate == 0.5 and not mixed.solved
+    assert summarize_runs([run, unsolved], [], min_solve_rate=0.5).solved
+    # 答えを返せなかった回も分母に含める
+    failed_one = summarize_runs([run, run], [], attempted=3, min_solve_rate=0.6)
+    assert failed_one.attempted_runs == 3 and round(failed_one.solve_rate, 2) == 0.67
+    assert failed_one.solved
+    assert failed_one.detect_rate == failed_one.answer_rate == failed_one.solve_rate
+    detected_but_wrong = run.model_copy(update={"answer_correct": False})
+    split = summarize_runs([detected_but_wrong, run], [], min_solve_rate=0.6)
+    assert (split.detect_rate, split.answer_rate, split.solve_rate) == (1.0, 0.5, 0.5)
     assert validation.min_steps == 2
     assert not summarize_runs([], []).solved
 
@@ -416,3 +457,21 @@ def test_replace_keys() -> None:
         "白波 は CE-01 を見て 朝霧 に伝えた(p10 と ep1 はそのまま)"
     )
     assert replace_keys("変更なし", {}) == "変更なし"
+
+
+async def test_validation_uses_solve_rate(
+    prompts: PromptLoader, research_report: ResearchReport
+) -> None:
+    # 3 回中 1 回しか解けない事件は、基準 0.6 に届かないので作り直す
+    def solver(n: int, _r: ChatRequest) -> FakeResponse:
+        first_round = n < 3
+        return text(SOLVED if (not first_round or n == 0) else UNSOLVED)
+
+    responder = CaseResponder({"SolverOutput": solver})
+    case = await make_generator(prompts, responder, solver_runs=3).generate(
+        "給付", evidence=research_report
+    )
+    assert responder.calls["MaterialsOutput"] == 2
+    assert case.validation is not None
+    assert case.validation.solved and case.validation.solve_rate == 1.0
+    assert case.validation.attempted_runs == 3

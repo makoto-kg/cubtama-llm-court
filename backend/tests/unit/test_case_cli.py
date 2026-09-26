@@ -42,7 +42,8 @@ def test_generate_list_validate(
     out = result.output
     assert "給付事業報告書事件" in out
     assert "LP-01" in out and "X-01" in out
-    assert "検証: 解ける / 一意 / 最短 2 手 / 解答率 100%(2 回中)" in out
+    assert "検証: 解ける / 一意 / 最短 2 手 / 解答率 100%(3 回中 3 回、基準 60%)" in out
+    assert "全矛盾の発見 100% / 問いの正答 100%" in out
     case_id = re.search(r"cases/(\w+)\.json", out)
     assert case_id is not None
 
@@ -50,9 +51,10 @@ def test_generate_list_validate(
     assert result.exit_code == 0
     assert case_id.group(1) in result.output and "解ける" in result.output
 
-    result = runner.invoke(app, ["case", "validate", case_id.group(1)])
+    result = runner.invoke(app, ["case", "validate", case_id.group(1), "--runs", "5"])
     assert result.exit_code == 0, result.output
     assert "solver 1: 矛盾 2/2" in result.output
+    assert "5 回中 5 回" in result.output
     stored = CaseStore(tmp_path / "cases").load(case_id.group(1))
     assert stored.validation is not None and stored.validation.solved
 

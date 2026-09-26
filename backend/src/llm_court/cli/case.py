@@ -101,7 +101,13 @@ def print_validation(case: Case) -> None:
     status = "[green]解ける[/green]" if v.solved else "[red]解けない[/red]"
     unique = "一意" if v.unique else "一意でない可能性"
     steps = f" / 最短 {v.min_steps} 手" if v.min_steps is not None else ""
-    rate = f" / 解答率 {v.solve_rate:.0%}({len(v.solver_runs)} 回中)" if v.solver_runs else ""
+    attempted = v.attempted_runs or len(v.solver_runs)
+    solved_runs = sum(r.solved for r in v.solver_runs)
+    rate = ""
+    if attempted:
+        rate = f" / 解答率 {v.solve_rate:.0%}({attempted} 回中 {solved_runs} 回"
+        rate += f"、基準 {v.min_solve_rate:.0%})"
+        rate += f" / 全矛盾の発見 {v.detect_rate:.0%} / 問いの正答 {v.answer_rate:.0%}"
     console.print(f"検証: {status} / {unique}{steps}{rate}")
     g = case.generation
     if g is not None:
@@ -158,7 +164,12 @@ def generate(
 
 
 @case_app.command("validate")
-def validate(case_id: Annotated[str, typer.Argument(help="事件の ID")]) -> None:
+def validate(
+    case_id: Annotated[str, typer.Argument(help="事件の ID")],
+    runs: Annotated[
+        int | None, typer.Option("--runs", "-n", min=1, help="solver に解かせる回数(既定は設定値)")
+    ] = None,
+) -> None:
     """保存済みの事件を、整合性チェックと solver で検証し直して結果を更新する。"""
     settings = Settings()
     store = CaseStore(settings.scenario.case_dir)
@@ -181,7 +192,7 @@ def validate(case_id: Annotated[str, typer.Argument(help="事件の ID")]) -> No
                 settings=settings.scenario,
             )
             with console.status("検証しています…"):
-                return await generator.validate(case)
+                return await generator.validate(case, runs)
 
     try:
         validated = asyncio.run(run())
