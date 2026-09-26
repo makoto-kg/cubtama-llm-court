@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     debate_output_dir: Path = Path("data/debates")
     """ディベートのイベントログ(JSONL)と法廷記録(Markdown)の保存先。"""
 
+    eval_output_dir: Path = Path("data/eval")
+    """評価ハーネスの結果(CSV・Markdown・ディベートのログ)の保存先。"""
+
     research: ResearchSettings = ResearchSettings()
     """環境変数では `LLM_COURT_RESEARCH__TARGET_EVIDENCE=6` のように指定する。"""
 

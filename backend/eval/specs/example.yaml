@@ -1,0 +1,22 @@
+# 評価仕様のサンプル。パスは backend/ からの相対パス(実行時の作業ディレクトリ基準)。
+# 使い方: uv run llm-court eval eval/specs/example.yaml
+#
+# - configs: 比較するモデル構成(models.yaml 形式)。手元の構成は git 管理外の *.local.yaml に置く
+# - topics.evidence: `llm-court research` で作った捜査結果。構成間で同じ証拠品を使って条件をそろえる
+# - reference_judge: 任意。物差しにする裁判長(models.yaml 形式、judge 役だけを使う)。
+#   開発時にクラウドモデルを使う場合は api_key に "${OPENAI_API_KEY}" のように環境変数を書く
+name: gpt-oss-20b vs gemma-4-12b
+rounds: 1
+runs: 1
+judge_repeats: 2
+configs:
+  - name: gpt-oss-20b
+    models: config/models.local.yaml
+  - name: gemma-4-12b
+    models: config/models.gemma.local.yaml
+topics:
+  - topic: 日本はベーシックインカムを導入すべきか
+    evidence: eval/evidence/basic-income.json
+  - topic: 週休3日制を導入すべきか
+    evidence: eval/evidence/four-day-week.json
+reference_judge: null

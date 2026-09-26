@@ -202,3 +202,61 @@ def test_debate_rejects_bad_evidence_file(tmp_path: Path) -> None:
     result = runner.invoke(app, ["debate", "論題", "--evidence", str(bad)])
     assert result.exit_code == 1
     assert "捜査結果を読み込めません" in result.output
+
+
+def test_eval_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, research_report: ResearchReport
+) -> None:
+    from llm_court.cli import main as cli_main
+    from tests.debate_fakes import DebateResponder
+
+    evidence = tmp_path / "evidence.json"
+    evidence.write_text(research_report.model_dump_json(), encoding="utf-8")
+    models = BACKEND_ROOT / "config/models.yaml"
+    spec = tmp_path / "spec.yaml"
+    spec.write_text(
+        f"""
+name: CLI テスト
+judge_repeats: 1
+configs:
+  - {{name: A, models: {models}}}
+  - {{name: B, models: {models}}}
+topics:
+  - {{topic: 論題, evidence: {evidence}}}
+""",
+        encoding="utf-8",
+    )
+    fake = FakeChatBackend(responder=DebateResponder())
+    monkeypatch.setattr(cli_main, "backend_factory", _factory(fake))
+    monkeypatch.setenv("COLUMNS", "200")
+    monkeypatch.setenv("LLM_COURT_PROMPTS_DIR", str(BACKEND_ROOT / "prompts"))
+    out = tmp_path / "out"
+
+    result = runner.invoke(app, ["eval", str(spec), "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert "構成の比較" in result.output
+    assert "順序反転率" in result.output
+    assert (out / "report.md").read_text(encoding="utf-8").startswith("# 評価レポート: CLI テスト")
+    for name in ("runs.csv", "turns.csv", "summary.csv", "result.json", "events.db"):
+        assert (out / name).exists()
+
+    # 保存済みの結果から作り直したレポートは同じ内容になる
+    before = (out / "report.md").read_text(encoding="utf-8")
+    (out / "report.md").unlink()
+    result = runner.invoke(app, ["eval-report", str(out)])
+    assert result.exit_code == 0, result.output
+    assert (out / "report.md").read_text(encoding="utf-8") == before
+
+
+def test_eval_report_missing_dir(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["eval-report", str(tmp_path / "nope")])
+    assert result.exit_code == 1
+    assert "評価結果を読み込めません" in result.output
+
+
+def test_eval_command_invalid_spec(tmp_path: Path) -> None:
+    spec = tmp_path / "spec.yaml"
+    spec.write_text("name: x\nconfigs: []\n", encoding="utf-8")
+    result = runner.invoke(app, ["eval", str(spec)])
+    assert result.exit_code == 1
+    assert "評価仕様のエラー" in result.output

@@ -1,4 +1,4 @@
-"""発言中の出典([EV-01] 記法)と引用(「」)の規則ベースの検査。"""
+"""発言中の出典(EV-01 等の証拠品 ID)と引用(「」)の規則ベースの検査。"""
 
 import re
 import unicodedata
@@ -6,11 +6,18 @@ import unicodedata
 from llm_court.domain import CitationIssue, Evidence
 from llm_court.research.quotes import verify_quote
 
-_CITATION_GROUP = re.compile(r"[\[［【]([^\]］】]*?EV-\d+[^\]］】]*)[\]］】]", re.IGNORECASE)
-_EVIDENCE_ID = re.compile(r"EV-(\d+)", re.IGNORECASE)
+# 括弧の有無・種類を問わず証拠品 ID を出典とみなす(モデルは [EV-01] 以外の書き方もする)
+_EVIDENCE_ID = re.compile(r"(?<![A-Za-z])EV\s*-\s*(\d+)", re.IGNORECASE)
+# NFKC で ASCII にならないハイフン・ダッシュ類(gpt-oss は U+2011 を使う)
+_DASHES = str.maketrans(dict.fromkeys("\u2010\u2011\u2012\u2013\u2014\u2015\u2212", "-"))
 _QUOTE = re.compile(r"「([^「」]{8,})」")
 _SENTENCE_END = re.compile(r"[。！？!?\n]")
 _TRAILING_CITATIONS = re.compile(r"(?:\s*[\[［【][^\]］】]*[\]］】])+")
+
+
+def _normalize_text(text: str) -> str:
+    """NFKC とダッシュ類の統一。文字数は変わらない(位置の対応を保つ)ことに注意。"""
+    return unicodedata.normalize("NFKC", text).translate(_DASHES)
 
 
 def _normalize_id(number: str) -> str:
@@ -19,16 +26,16 @@ def _normalize_id(number: str) -> str:
 
 def normalize_evidence_ids(ids: list[str]) -> list[str]:
     """`ev-1`・`EV-01` 等の表記ゆれを `EV-01` 形式にそろえる(ID でないものは捨てる)。"""
-    normalized = unicodedata.normalize("NFKC", " ".join(ids))
+    normalized = _normalize_text(" ".join(ids))
     return list(dict.fromkeys(_normalize_id(n) for n in _EVIDENCE_ID.findall(normalized)))
 
 
 def extract_citations(text: str) -> list[str]:
-    """本文中の `[EV-01]`・`[EV-01, EV-03]` 等から証拠品 ID を出現順(重複なし)で返す。"""
-    text = unicodedata.normalize("NFKC", text)
-    ids: list[str] = []
-    for group in _CITATION_GROUP.finditer(text):
-        ids += [_normalize_id(n) for n in _EVIDENCE_ID.findall(group.group(1))]
+    """本文中の証拠品 ID を出現順(重複なし)で返す。
+
+    `[EV-01]`・`【EV-01】`・`(EV‑01)`・`EV-01によれば` のように括弧の有無・種類を問わない。
+    """
+    ids = [_normalize_id(n) for n in _EVIDENCE_ID.findall(_normalize_text(text))]
     return list(dict.fromkeys(ids))
 
 
@@ -48,6 +55,23 @@ def _evidence_corpus(evidence: Evidence) -> str:
     for fact in evidence.verified_facts:
         parts += [fact.text, fact.quote]
     return "\n".join(parts)
+
+
+def _checked_quotes(text: str, evidence: dict[str, Evidence]) -> list[tuple[str, list[str]]]:
+    """照合の対象になる「」の引用と、その文で引いた(実在する)証拠品 ID の組。"""
+    normalized = _normalize_text(text)
+    result: list[tuple[str, list[str]]] = []
+    for match in _QUOTE.finditer(normalized):
+        head, tail = _sentence_span(normalized, match.start(), match.end())
+        sentence_ids = [i for i in extract_citations(normalized[head:tail]) if i in evidence]
+        if sentence_ids:
+            result.append((match.group(1), sentence_ids))
+    return result
+
+
+def count_checked_quotes(text: str, evidence: dict[str, Evidence]) -> int:
+    """`check_citations` で照合の対象になる「」の引用の数(捏造率の分母)。"""
+    return len(_checked_quotes(text, evidence))
 
 
 def check_citations(
@@ -79,13 +103,7 @@ def check_citations(
             )
         )
 
-    normalized = unicodedata.normalize("NFKC", text)
-    for match in _QUOTE.finditer(normalized):
-        head, tail = _sentence_span(normalized, match.start(), match.end())
-        sentence_ids = [i for i in extract_citations(normalized[head:tail]) if i in evidence]
-        if not sentence_ids:
-            continue
-        quote = match.group(1)
+    for quote, sentence_ids in _checked_quotes(text, evidence):
         if any(verify_quote(quote, _evidence_corpus(evidence[i])) for i in sentence_ids):
             continue
         issues.append(

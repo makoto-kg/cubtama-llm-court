@@ -10,7 +10,8 @@ Python(FastAPI)によるゲームエンジン、LLM層、検索パイプライ�
 - 検索: SearXNG(`infra/docker-compose.yml` で起動)
 - 設定: `config/models.yaml`(プロバイダ・モデル・役割の割り当て)、`.env`(`.env.example` 参照)
   - 手元だけ割り当てを変えるときは git 管理外の `config/models.local.yaml` を作り、`LLM_COURT_MODELS_CONFIG_PATH=config/models.local.yaml` で指定する
-- 生成物: `.cache/`(取得済みページ)、`data/`(捜査結果、イベントストア `llm_court.db`、ディベートの JSONL・Markdown)。どちらも git 管理外
+- 生成物: `.cache/`(取得済みページ)、`data/`(捜査結果、イベントストア `llm_court.db`、ディベートの JSONL・Markdown、評価結果)。どちらも git 管理外
+- 評価: `eval/specs/`(評価仕様)、`eval/evidence/`(比較に固定で使う捜査結果)
 
 ## コマンド
 
@@ -26,6 +27,8 @@ uv run llm-court config check            # models.yaml の検証と役割割り�
 uv run llm-court bench -n 3 -r debater   # 役割のモデルで速度・構造化出力の成功率を計測(-r 省略で全役割)
 uv run llm-court research "<テーマ>"     # 証拠品を集めて表示し data/research/ に JSON 保存(--max-chars で本文長)
 uv run llm-court debate "<テーマ>" -r 3  # LLM 同士のディベート(--evidence で既存の捜査結果を使う)
+uv run llm-court eval eval/specs/example.yaml  # モデル構成の比較レポートを data/eval/ に出力
+uv run llm-court eval-report data/eval/<実行>  # 保存済みの評価結果からレポートを作り直す
 uv run pre-commit install                # pre-commit フック(ルートの .pre-commit-config.yaml)を有効化
 ```
 

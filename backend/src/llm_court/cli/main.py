@@ -16,7 +16,7 @@ from rich.panel import Panel
 from rich.status import Status
 from rich.table import Table
 
-from llm_court.config import ConfigError, Role, Settings, load_models_config
+from llm_court.config import ConfigError, ModelsConfig, Role, Settings, load_models_config
 from llm_court.domain import (
     CitationIssuesDetected,
     ClaimsExtracted,
@@ -36,6 +36,11 @@ from llm_court.engine.recorder import BufferedRecorder
 from llm_court.engine.state import DebateState
 from llm_court.engine.store import EventStore, export_jsonl
 from llm_court.engine.summary import DebateSummary, summarize
+from llm_court.eval.harness import EvalHarness
+from llm_court.eval.metrics import ConfigMetrics
+from llm_court.eval.models import EvalResult
+from llm_court.eval.report import compute_metrics, load_result, write_report
+from llm_court.eval.spec import EvalSpecError, load_spec
 from llm_court.llm import InMemoryRecorder, LLMClient, LLMConnectionError, PromptLoader
 from llm_court.llm.backend import OpenAIChatBackend
 from llm_court.llm.bench import BenchRow, run_bench
@@ -485,6 +490,101 @@ def debate(
         label = "接続エラー" if isinstance(error, SearchError | LLMConnectionError) else "エラー"
         console.print(f"[red]{label}:[/red] {escape(str(error))}")
         raise typer.Exit(code=1)
+
+
+def _metrics_table(metrics: list[ConfigMetrics]) -> Table:
+    table = Table(title="構成の比較")
+    table.add_column("指標")
+    for m in metrics:
+        table.add_column(m.config, justify="right")
+
+    def pct(v: float | None) -> str:
+        return "-" if v is None else f"{v:.0%}"
+
+    def sec(v: float | None) -> str:
+        return "-" if v is None else f"{v:.1f}s"
+
+    rows: list[tuple[str, list[str]]] = [
+        ("完了 / 中断", [f"{m.completed} / {m.aborted}" for m in metrics]),
+        ("順序反転率 ↓", [pct(m.order_flip_rate) for m in metrics]),
+        ("再評価の安定性 ↑", [pct(m.repeat_stability) for m in metrics]),
+        ("存在しない証拠品の率 ↓", [pct(m.unknown_evidence_rate) for m in metrics]),
+        ("証拠品にない引用の率 ↓", [pct(m.unsupported_quote_rate) for m in metrics]),
+        ("構造化出力の失敗率 ↓", [pct(m.structured_failure_rate) for m in metrics]),
+        ("発言の総時間 p50 / p90", [f"{sec(m.turn_p50_s)} / {sec(m.turn_p90_s)}" for m in metrics]),
+        ("TTFT p50", [sec(m.ttft_p50_s) for m in metrics]),
+    ]
+    for label, values in rows:
+        table.add_row(label, *values)
+    return table
+
+
+@app.command("eval")
+def eval_command(
+    spec_path: Annotated[Path, typer.Argument(help="評価仕様ファイル(YAML)")],
+    out: Annotated[
+        Path | None, typer.Option("--out", "-o", help="結果の保存先(既定は eval_output_dir)")
+    ] = None,
+) -> None:
+    """同じテーマ群で複数のモデル構成のディベートを回し、指標を比較したレポートを作る。"""
+    settings = Settings()
+    try:
+        spec = load_spec(spec_path)
+    except EvalSpecError as e:
+        console.print(f"[red]評価仕様のエラー:[/red] {escape(str(e))}")
+        raise typer.Exit(code=1) from e
+    prompts = PromptLoader(settings.prompts_dir)
+    out_dir = out or (
+        settings.eval_output_dir / f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{_slug(spec.name)}"
+    )
+
+    def client_factory(models: ModelsConfig, recorder: BufferedRecorder) -> LLMClient:
+        return LLMClient(
+            models,
+            prompts=prompts,
+            structured_max_retries=settings.llm_structured_max_retries,
+            backend_factory=backend_factory,
+            recorder=recorder,
+        )
+
+    harness = EvalHarness(
+        prompts=prompts, mode=DEBATE_MODE, client_factory=client_factory, out_dir=out_dir
+    )
+
+    async def run() -> EvalResult:
+        with console.status("評価を実行中…") as status:
+            return await harness.run(spec, on_progress=lambda m: status.update(m))
+
+    try:
+        result = asyncio.run(run())
+    except (ConfigError, LLMConnectionError) as e:
+        console.print(f"[red]エラー:[/red] {escape(str(e))}")
+        raise typer.Exit(code=1) from e
+
+    _report(result, out_dir)
+
+
+def _report(result: EvalResult, out_dir: Path) -> None:
+    metrics = compute_metrics(result, DEBATE_MODE)
+    files = write_report(result, metrics, out_dir)
+    console.print(_metrics_table(metrics))
+    console.print(f"レポート: {files.markdown}")
+    console.print(
+        f"[dim]CSV: {files.runs_csv.name}, {files.turns_csv.name}, {files.summary_csv.name}[/dim]"
+    )
+
+
+@app.command("eval-report")
+def eval_report(
+    out_dir: Annotated[Path, typer.Argument(help="llm-court eval の結果ディレクトリ")],
+) -> None:
+    """保存済みの評価結果から指標を計算し直し、レポートを作り直す(ディベートは再実行しない)。"""
+    try:
+        result = load_result(out_dir)
+    except (OSError, ValueError) as e:
+        console.print(f"[red]評価結果を読み込めません:[/red] {escape(str(e))}")
+        raise typer.Exit(code=1) from e
+    _report(result, out_dir)
 
 
 if __name__ == "__main__":

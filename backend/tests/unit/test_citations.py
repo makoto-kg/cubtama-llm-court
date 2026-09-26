@@ -60,3 +60,19 @@ def test_quote_without_citation_in_sentence_is_ignored(research_report: Research
 def test_quote_checked_against_all_cited_in_sentence(research_report: ResearchReport) -> None:
     text = "「年間約150兆円が必要になります」という試算があります[EV-01][EV-02]。"
     assert _kinds(text, research_report) == []
+
+
+def test_extract_citations_without_brackets_and_unicode_hyphens() -> None:
+    # gpt-oss は U+2011(改行しないハイフン)や括弧なしの書き方をする
+    text = "EV-01によれば影響は小さい。財源は(EV\u201102)。EV\u201108 は存在しない。NEV-3 は対象外"
+    assert extract_citations(text) == ["EV-01", "EV-02", "EV-08"]
+
+
+def test_quote_with_long_vowel_mark(research_report: ResearchReport) -> None:
+    # 長音記号はダッシュ扱いしない(引用の照合を壊さない)
+    evidence = {e.id: e for e in research_report.evidence}
+    evidence["EV-01"] = evidence["EV-01"].model_copy(
+        update={"summary": "ベーシックインカムの給付実験を行った"}
+    )
+    text = "「ベーシックインカムの給付実験」がありました EV\u201101。"
+    assert check_citations("S-01", text, evidence) == []
