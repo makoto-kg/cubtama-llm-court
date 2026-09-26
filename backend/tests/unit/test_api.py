@@ -37,7 +37,10 @@ class Api:
 
 
 def make_settings(tmp_path: Path) -> Settings:
+    samples = tmp_path / "samples"
+    samples.mkdir(exist_ok=True)
     return Settings(
+        sample_evidence_dir=samples,
         database_path=tmp_path / "db.sqlite",
         prompts_dir=BACKEND_ROOT / "prompts",
         models_config_path=BACKEND_ROOT / "config/models.yaml",
@@ -483,3 +486,66 @@ async def test_llm_session_has_no_choices(api: Api, research_report: ResearchRep
         f"/api/sessions/{session_id}/choices", json={"option_id": "T01-1"}
     )
     assert response.status_code == 409
+
+
+# --- 同梱の証拠品・設定・思考ログ ---
+
+
+async def test_evidence_samples(api: Api, research_report: ResearchReport) -> None:
+    samples = api.ctx.settings.sample_evidence_dir
+    (samples / "basic-income.json").write_text(research_report.model_dump_json(), encoding="utf-8")
+    (samples / "notes.txt").write_text("対象外", encoding="utf-8")
+
+    items = (await api.client.get("/api/evidence-samples")).json()
+    assert [(i["name"], i["topic"], i["evidence_count"]) for i in items] == [
+        ("basic-income", research_report.topic, 2)
+    ]
+
+    session_id = await create(api)
+    response = await api.client.post(f"/api/sessions/{session_id}/evidence/samples/nope")
+    assert response.status_code == 404
+    response = await api.client.post(f"/api/sessions/{session_id}/evidence/samples/..%2Fdb")
+    assert response.status_code == 404
+    response = await api.client.post(f"/api/sessions/{session_id}/evidence/samples/basic-income")
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "ready"
+    assert len(response.json()["evidence"]) == 2
+
+
+async def test_config(api: Api) -> None:
+    config = (await api.client.get("/api/config")).json()
+    roles = {r["role"]: r for r in config["roles"]}
+    assert set(roles) >= {"debater", "judge", "analyst", "advocate"}
+    assert roles["debater"]["base_url"] == "http://localhost:1234/v1"
+    assert "api_key" not in json.dumps(config)
+
+
+async def test_thinking_log_hides_pending_analyst_output(
+    api: Api, research_report: ResearchReport
+) -> None:
+    session_id = await create_human(api)
+    await put_evidence(api, session_id, research_report)
+    await api.client.post(f"/api/sessions/{session_id}/run")
+    await api.wait(session_id)
+
+    def analyst_calls(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            e["call"]
+            for e in events
+            if e["type"] == "llm_call_recorded" and e["call"]["role"] == "analyst"
+        ]
+
+    events = (await api.client.get(f"/api/sessions/{session_id}/events")).json()
+    debater = next(e["call"] for e in events if e["type"] == "llm_call_recorded")
+    assert debater["messages"] and debater["response_text"]  # 入出力が記録されている
+    (pending,) = analyst_calls(events)
+    assert pending["messages"]  # 入力は見せる
+    assert pending["response_text"] is None and pending["parsed"] is None  # 出力は伏せる
+
+    option = (await api.client.get(f"/api/sessions/{session_id}/choices")).json()["options"][0]
+    await api.client.post(f"/api/sessions/{session_id}/choices", json={"option_id": option["id"]})
+    await api.wait(session_id)
+    events = (await api.client.get(f"/api/sessions/{session_id}/events")).json()
+    calls = analyst_calls(events)
+    assert calls[0]["parsed"] is not None  # 選択後は公開
+    assert calls[-1]["parsed"] is None  # 次の手番の分は伏せたまま

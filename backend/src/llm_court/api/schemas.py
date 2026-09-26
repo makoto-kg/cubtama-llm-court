@@ -93,6 +93,8 @@ class SessionView(BaseModel):
     aborted: str | None
     human_side: Side | None
     penalty_gauge: int
+    penalty_gauge_max: int
+    """ゲージの初期値(表示用)。"""
     pending_choices: ChoicesView | None
     """人間の選択待ちの選択肢(強さは伏せてある)。"""
     choices: list[ChoiceOption]
@@ -153,6 +155,7 @@ def session_view(state: DebateState, mode: DebateMode, task: TaskView | None) ->
         aborted=state.aborted,
         human_side=state.human_side,
         penalty_gauge=state.penalty_gauge,
+        penalty_gauge_max=state.penalty_gauge_max,
         pending_choices=choices_view(state),
         choices=[c.option for c in state.choices],
     )
@@ -171,3 +174,37 @@ def choices_view(state: DebateState) -> ChoicesView | None:
         options=redacted.options,
         penalty_gauge=state.penalty_gauge,
     )
+
+
+class EvidenceSample(BaseModel):
+    """同梱の捜査結果(ブラウザから証拠品として選べる)。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    topic: str
+    evidence_count: int
+    created_at: datetime
+
+
+class RoleAssignment(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    role: str
+    model_key: str
+    model: str
+    reasoning: str | None
+    provider: str
+    base_url: str
+    json_schema: bool
+    json_mode: bool
+    streaming: bool
+    max_concurrency: int
+
+
+class ConfigView(BaseModel):
+    """役割ごとのモデル割り当て(設定画面用。api_key は含めない)。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    roles: list[RoleAssignment]

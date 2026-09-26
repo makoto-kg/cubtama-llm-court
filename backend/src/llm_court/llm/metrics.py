@@ -7,7 +7,7 @@
 import logging
 import uuid
 from datetime import datetime
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -43,6 +43,14 @@ class LLMCallRecord(BaseModel):
     retries: int = 0
     """検証失敗による再試行の回数(モード降格は含まない)。"""
     error: str | None = None
+    messages: list[dict[str, str]] | None = None
+    """最後の試行で送ったメッセージ(role, content)。入出力の記録が無効なら None。"""
+    response_text: str | None = None
+    """最後の試行の生の出力(本文)。"""
+    reasoning_text: str | None = None
+    """最後の試行の思考部分(サーバーが分けて返した分。長さに上限あり)。"""
+    parsed: dict[str, Any] | None = None
+    """構造化出力の検証済みの値。"""
 
 
 class CallRecorder(Protocol):

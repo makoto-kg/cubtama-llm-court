@@ -56,10 +56,16 @@ class _Attempt:
     ended: float | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    content: list[str] = field(default_factory=list[str])
+    reasoning: list[str] = field(default_factory=list[str])
 
     def observe(self, chunk: ChatChunk) -> None:
         if self.first_token is None and (chunk.content or chunk.reasoning):
             self.first_token = time.perf_counter()
+        if chunk.content:
+            self.content.append(chunk.content)
+        if chunk.reasoning:
+            self.reasoning.append(chunk.reasoning)
         if chunk.usage is not None:
             self.input_tokens = chunk.usage.input_tokens
             self.output_tokens = chunk.usage.output_tokens
@@ -146,8 +152,12 @@ class LLMClient:
         structured_max_retries: int,
         backend_factory: BackendFactory = OpenAIChatBackend.from_provider,
         recorder: CallRecorder | None = None,
+        record_io: bool = True,
+        reasoning_max_chars: int = 4000,
     ) -> None:
         self._config = config
+        self._record_io = record_io
+        self._reasoning_max_chars = reasoning_max_chars
         self._prompts = prompts
         self._max_retries = structured_max_retries
         self.recorder: CallRecorder = recorder if recorder is not None else InMemoryRecorder()
@@ -170,6 +180,8 @@ class LLMClient:
             structured_max_retries=settings.llm_structured_max_retries,
             backend_factory=backend_factory,
             recorder=recorder,
+            record_io=settings.llm_record_io,
+            reasoning_max_chars=settings.llm_record_reasoning_max_chars,
         )
 
     @property
@@ -228,9 +240,21 @@ class LLMClient:
         resolved: ResolvedModel,
         meter: _CallMeter,
         prompt: PromptInput,
+        *,
+        request: ChatRequest,
+        parsed: BaseModel | None = None,
         **fields: Any,
     ) -> LLMCallRecord:
         rendered = prompt if isinstance(prompt, RenderedPrompt) else None
+        if self._record_io:
+            last = meter.attempts[-1] if meter.attempts else None
+            reasoning = "".join(last.reasoning) if last else ""
+            fields |= {
+                "messages": [m.model_dump() for m in request.messages],
+                "response_text": "".join(last.content) if last else "",
+                "reasoning_text": reasoning[: self._reasoning_max_chars] or None,
+                "parsed": parsed.model_dump(mode="json") if parsed is not None else None,
+            }
         record = LLMCallRecord(
             role=resolved.role.value,
             model_key=resolved.model_key,
@@ -283,7 +307,13 @@ class LLMClient:
             raise
         finally:
             record = self._record(
-                resolved, meter, prompt, kind="text", success=error is None, error=error
+                resolved,
+                meter,
+                prompt,
+                request=request,
+                kind="text",
+                success=error is None,
+                error=error,
             )
             if on_record is not None:
                 on_record(record)
@@ -366,11 +396,17 @@ class LLMClient:
         retries = 0
         messages = base_messages
 
-        def record(success: bool, error: str | None = None) -> LLMCallRecord:
+        request = self._structured_request(resolved, messages, modes[0], schema, max_tokens)
+
+        def record(
+            success: bool, error: str | None = None, parsed: BaseModel | None = None
+        ) -> LLMCallRecord:
             return self._record(
                 resolved,
                 meter,
                 prompt,
+                request=request,
+                parsed=parsed,
                 kind="structured",
                 schema_name=schema.__name__,
                 structured_mode=modes[mode_index],
@@ -421,4 +457,4 @@ class LLMClient:
                 ]
                 continue
 
-            return StructuredResult(value=value, raw_text=raw, record=record(True))
+            return StructuredResult(value=value, raw_text=raw, record=record(True, parsed=value))

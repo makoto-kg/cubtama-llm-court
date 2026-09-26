@@ -4,7 +4,7 @@
 """
 
 from datetime import UTC, datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
@@ -49,6 +49,14 @@ class LLMCallInfo(BaseModel):
     attempts: int = 1
     retries: int = 0
     error: str | None = None
+    messages: list[dict[str, str]] | None = None
+    """最後の試行で送ったメッセージ(role, content)。入出力の記録が無効なら None。"""
+    response_text: str | None = None
+    """最後の試行の生の出力(本文)。"""
+    reasoning_text: str | None = None
+    """最後の試行の思考部分(サーバーが分けて返した分。長さに上限あり)。"""
+    parsed: dict[str, Any] | None = None
+    """構造化出力の検証済みの値。"""
 
 
 class EventBase(BaseModel):

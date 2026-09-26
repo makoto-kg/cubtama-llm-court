@@ -57,6 +57,8 @@ class DebateState(BaseModel):
     aborted: str | None = None
     human_side: Side | None = None
     penalty_gauge: int = 0
+    penalty_gauge_max: int = 0
+    """ペナルティゲージの初期値(開廷時に記録した値)。"""
     pending_choices: ChoicesPrepared | None = None
     """人間の手番で、まだ選ばれていない選択肢。"""
     choices: list[ChoiceMade] = []
@@ -117,6 +119,7 @@ class DebateState(BaseModel):
                     "models": event.models,
                     "human_side": event.human_side,
                     "penalty_gauge": event.penalty_gauge,
+                    "penalty_gauge_max": event.penalty_gauge,
                 }
             case EvidenceCollected():
                 update["research"] = event.report

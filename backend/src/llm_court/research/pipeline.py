@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 ProgressFn = Callable[[str], None]
 
+FOUND_PREFIX = "証拠品候補: "
+"""証拠品候補が見つかったときの進捗メッセージの接頭辞(捜査画面で候補を並べるのに使う)。"""
+
 
 class Searcher(Protocol):
     async def search(self, query: str, *, limit: int) -> list[SearchHit]: ...
@@ -89,7 +92,10 @@ class ResearchPipeline:
         async def extract(hit: SearchHit, page: FetchedPage) -> EvidenceDraft | str:
             nonlocal done
             try:
-                return await self._extract(topic, hit, page)
+                draft = await self._extract(topic, hit, page)
+                if draft.relevant:
+                    progress(f"{FOUND_PREFIX}{draft.title}")
+                return draft
             except LLMConnectionError:
                 raise
             except LLMError as e:

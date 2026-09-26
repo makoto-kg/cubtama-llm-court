@@ -261,3 +261,12 @@ async def test_pipeline_raises_when_all_searches_fail(prompts: PromptLoader) -> 
     fake_llm = FakeChatBackend(responder=responder_for(["q1"]))
     with pytest.raises(SearchError):
         await make_pipeline(prompts, fake_llm, searcher, FakeFetcher()).run(TOPIC)
+
+
+async def test_pipeline_reports_found_evidence(prompts: PromptLoader) -> None:
+    messages: list[str] = []
+    fake_llm = FakeChatBackend(responder=responder_for(["q1"]))
+    await make_pipeline(prompts, fake_llm, FakeSearcher({"q1": [hit(1)]}), FakeFetcher()).run(
+        TOPIC, on_progress=messages.append
+    )
+    assert "証拠品候補: 証拠 https://site1.example/a" in messages

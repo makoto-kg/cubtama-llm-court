@@ -1,0 +1,3468 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "llm-court API",
+    "description": "LLM 法廷バトルゲームのバックエンド API(REST + SSE)。",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Health",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions": {
+      "get": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "List Sessions",
+        "operationId": "listSessions",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionListItem"
+                  },
+                  "type": "array",
+                  "title": "Response Listsessions"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "Create Session",
+        "description": "開廷する。続けて証拠品を用意する(`research` または `evidence`)。",
+        "operationId": "createSession",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}": {
+      "get": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "Get Session",
+        "operationId": "getSession",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "セッションがない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/evidence-samples": {
+      "get": {
+        "tags": [
+          "evidence"
+        ],
+        "summary": "List Evidence Samples",
+        "description": "同梱の捜査結果の一覧。SearXNG なしで始めるときに使う。",
+        "operationId": "listEvidenceSamples",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EvidenceSample"
+                  },
+                  "type": "array",
+                  "title": "Response Listevidencesamples"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/evidence/samples/{name}": {
+      "post": {
+        "tags": [
+          "evidence"
+        ],
+        "summary": "Use Evidence Sample",
+        "description": "同梱の捜査結果を証拠品として使う。`name` は一覧にあるものだけ受け付ける。",
+        "operationId": "useEvidenceSample",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "セッションがない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get Config",
+        "description": "役割ごとのモデル割り当て(api_key は返さない)。",
+        "operationId": "getConfig",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/research": {
+      "post": {
+        "tags": [
+          "progress"
+        ],
+        "summary": "Start Research",
+        "description": "捜査をバックグラウンドで始める。進捗と結果は SSE で通知する。",
+        "operationId": "startResearch",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskAccepted"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "セッションがない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/evidence": {
+      "put": {
+        "tags": [
+          "progress"
+        ],
+        "summary": "Set Evidence",
+        "description": "既存の捜査結果(`llm-court research` の JSON)を証拠品として使い、捜査を省略する。",
+        "operationId": "setEvidence",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchReport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "セッションがない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/advance": {
+      "post": {
+        "tags": [
+          "progress"
+        ],
+        "summary": "Advance Session",
+        "description": "次の 1 手(発言または判決)をバックグラウンドで進める。発言は SSE でストリーミングする。",
+        "operationId": "advanceSession",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskAccepted"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "セッションがない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/run": {
+      "post": {
+        "tags": [
+          "progress"
+        ],
+        "summary": "Run Session",
+        "description": "判決まで自動で進める。",
+        "operationId": "runSession",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskAccepted"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "セッションがない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/choices": {
+      "get": {
+        "tags": [
+          "human"
+        ],
+        "summary": "Get Choices",
+        "description": "人間の手番の選択肢。強さ(strong / weak / trap)は選ぶまで伏せる。",
+        "operationId": "getChoices",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChoicesView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "セッションがない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "human"
+        ],
+        "summary": "Choose Option",
+        "description": "選択肢を選ぶ。代弁者が発言を清書し、次の人間の手番か判決まで進める。",
+        "operationId": "chooseOption",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChooseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskAccepted"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "セッションがない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "選択肢がない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/events": {
+      "get": {
+        "tags": [
+          "logs"
+        ],
+        "summary": "List Events",
+        "description": "イベントログ(`after` より後の seq)。",
+        "operationId": "listEvents",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "After"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/SessionStarted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/EvidenceCollected"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PhaseStarted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/StatementMade"
+                      },
+                      {
+                        "$ref": "#/components/schemas/CitationIssuesDetected"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ClaimsExtracted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/JudgeScored"
+                      },
+                      {
+                        "$ref": "#/components/schemas/VerdictDelivered"
+                      },
+                      {
+                        "$ref": "#/components/schemas/SessionAborted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ChoicesPrepared"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ChoiceMade"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PenaltyApplied"
+                      },
+                      {
+                        "$ref": "#/components/schemas/LLMCallRecorded"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "type",
+                      "mapping": {
+                        "session_started": "#/components/schemas/SessionStarted",
+                        "evidence_collected": "#/components/schemas/EvidenceCollected",
+                        "phase_started": "#/components/schemas/PhaseStarted",
+                        "statement_made": "#/components/schemas/StatementMade",
+                        "citation_issues_detected": "#/components/schemas/CitationIssuesDetected",
+                        "claims_extracted": "#/components/schemas/ClaimsExtracted",
+                        "judge_scored": "#/components/schemas/JudgeScored",
+                        "verdict_delivered": "#/components/schemas/VerdictDelivered",
+                        "session_aborted": "#/components/schemas/SessionAborted",
+                        "choices_prepared": "#/components/schemas/ChoicesPrepared",
+                        "choice_made": "#/components/schemas/ChoiceMade",
+                        "penalty_applied": "#/components/schemas/PenaltyApplied",
+                        "llm_call_recorded": "#/components/schemas/LLMCallRecorded"
+                      }
+                    }
+                  },
+                  "title": "Response Listevents"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "セッションがない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/stream": {
+      "get": {
+        "tags": [
+          "logs"
+        ],
+        "summary": "Stream Session",
+        "operationId": "streamSession",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "After"
+            }
+          },
+          {
+            "name": "last-event-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE。event は debate(永続イベント、id=seq)/ turn(発言開始)/ token(発言のチャンク)/ progress / task。判決・中断で終わる",
+            "content": {
+              "text/event-stream": {}
+            }
+          },
+          "404": {
+            "description": "セッションがない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/record": {
+      "get": {
+        "tags": [
+          "logs"
+        ],
+        "summary": "Get Record",
+        "description": "人間が読める Markdown の法廷記録。",
+        "operationId": "getRecord",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/markdown": {}
+            }
+          },
+          "404": {
+            "description": "セッションがない",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/summary": {
+      "get": {
+        "tags": [
+          "logs"
+        ],
+        "summary": "Get Summary",
+        "description": "計測サマリ(ターンごとの待ち時間、トークン、構造化出力の失敗、出典の問題)。",
+        "operationId": "getSummary",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DebateSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "セッションがない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChoiceMade": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "choice_made",
+            "title": "Type",
+            "default": "choice_made"
+          },
+          "option": {
+            "$ref": "#/components/schemas/ChoiceOption"
+          }
+        },
+        "type": "object",
+        "required": [
+          "option"
+        ],
+        "title": "ChoiceMade"
+      },
+      "ChoiceOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "contradiction",
+              "probe",
+              "argument"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "pitch": {
+            "type": "string",
+            "title": "Pitch"
+          },
+          "contradiction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContradictionCandidate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_claim_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Claim Id"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Ids"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "analyst",
+                  "rule"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source",
+            "default": "analyst"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "pitch"
+        ],
+        "title": "ChoiceOption"
+      },
+      "ChoicesPrepared": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "choices_prepared",
+            "title": "Type",
+            "default": "choices_prepared"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/DebatePhase"
+          },
+          "round": {
+            "type": "integer",
+            "title": "Round"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ChoiceOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "discarded": {
+            "type": "integer",
+            "title": "Discarded",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "phase",
+          "round",
+          "side",
+          "options"
+        ],
+        "title": "ChoicesPrepared",
+        "description": "人間の手番に示す選択肢(分析官が生成)。"
+      },
+      "ChoicesView": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/DebatePhase"
+          },
+          "round": {
+            "type": "integer",
+            "title": "Round"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ChoiceOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "penalty_gauge": {
+            "type": "integer",
+            "title": "Penalty Gauge"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "phase",
+          "round",
+          "side",
+          "options",
+          "penalty_gauge"
+        ],
+        "title": "ChoicesView",
+        "description": "人間の手番で示されている選択肢(強さは伏せてある)。"
+      },
+      "ChooseRequest": {
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Option Id",
+            "description": "選ぶ選択肢の ID"
+          }
+        },
+        "type": "object",
+        "required": [
+          "option_id"
+        ],
+        "title": "ChooseRequest"
+      },
+      "CitationIssue": {
+        "properties": {
+          "statement_id": {
+            "type": "string",
+            "title": "Statement Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "unknown_evidence",
+              "unsupported_quote",
+              "no_citation"
+            ],
+            "title": "Kind"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Id"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statement_id",
+          "kind",
+          "detail"
+        ],
+        "title": "CitationIssue",
+        "description": "発言中の出典の問題(存在しない証拠品、証拠品にない引用、出典なし)。"
+      },
+      "CitationIssuesDetected": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "citation_issues_detected",
+            "title": "Type",
+            "default": "citation_issues_detected"
+          },
+          "statement_id": {
+            "type": "string",
+            "title": "Statement Id"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/CitationIssue"
+            },
+            "type": "array",
+            "title": "Issues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statement_id",
+          "issues"
+        ],
+        "title": "CitationIssuesDetected"
+      },
+      "Claim": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "statement_id": {
+            "type": "string",
+            "title": "Statement Id"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "fact",
+              "value",
+              "inference"
+            ],
+            "title": "Kind"
+          },
+          "cited_evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cited Evidence Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "statement_id",
+          "side",
+          "text",
+          "kind",
+          "cited_evidence_ids"
+        ],
+        "title": "Claim",
+        "description": "発言から抽出した個々の主張。"
+      },
+      "ClaimsExtracted": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "claims_extracted",
+            "title": "Type",
+            "default": "claims_extracted"
+          },
+          "statement_id": {
+            "type": "string",
+            "title": "Statement Id"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            },
+            "type": "array",
+            "title": "Claims"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statement_id",
+          "claims"
+        ],
+        "title": "ClaimsExtracted"
+      },
+      "ConfigView": {
+        "properties": {
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleAssignment"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "roles"
+        ],
+        "title": "ConfigView",
+        "description": "役割ごとのモデル割り当て(設定画面用。api_key は含めない)。"
+      },
+      "ContradictionCandidate": {
+        "properties": {
+          "target_claim_id": {
+            "type": "string",
+            "title": "Target Claim Id"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Id"
+          },
+          "other_claim_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Other Claim Id"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "self_contradiction",
+              "evidence_conflict",
+              "logical_leap",
+              "definition_shift",
+              "fabricated_citation"
+            ],
+            "title": "Type"
+          },
+          "strength": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "strong",
+                  "weak",
+                  "trap"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strength"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_claim_id",
+          "type",
+          "strength",
+          "rationale"
+        ],
+        "title": "ContradictionCandidate",
+        "description": "矛盾候補。`evidence_id` と `other_claim_id` はどちらか(または両方なし)。"
+      },
+      "CreateSessionRequest": {
+        "properties": {
+          "topic": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Topic",
+            "description": "論題"
+          },
+          "rounds": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Rounds",
+            "description": "反論の往復数",
+            "default": 3
+          },
+          "human_side": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Side"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "人間が担当する陣営。省略すると LLM vs LLM"
+          }
+        },
+        "type": "object",
+        "required": [
+          "topic"
+        ],
+        "title": "CreateSessionRequest"
+      },
+      "DebatePhase": {
+        "type": "string",
+        "enum": [
+          "opening",
+          "rebuttal",
+          "closing",
+          "verdict"
+        ],
+        "title": "DebatePhase"
+      },
+      "DebateSummary": {
+        "properties": {
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/TurnMetrics"
+            },
+            "type": "array",
+            "title": "Turns"
+          },
+          "llm_calls": {
+            "type": "integer",
+            "title": "Llm Calls"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          },
+          "llm_time_ms": {
+            "type": "number",
+            "title": "Llm Time Ms"
+          },
+          "structured_calls": {
+            "type": "integer",
+            "title": "Structured Calls"
+          },
+          "structured_failures": {
+            "type": "integer",
+            "title": "Structured Failures"
+          },
+          "structured_retries": {
+            "type": "integer",
+            "title": "Structured Retries"
+          },
+          "citation_issues": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Citation Issues"
+          },
+          "claims": {
+            "type": "integer",
+            "title": "Claims"
+          },
+          "wall_time_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wall Time S"
+          }
+        },
+        "type": "object",
+        "required": [
+          "turns",
+          "llm_calls",
+          "input_tokens",
+          "output_tokens",
+          "llm_time_ms",
+          "structured_calls",
+          "structured_failures",
+          "structured_retries",
+          "citation_issues",
+          "claims",
+          "wall_time_s"
+        ],
+        "title": "DebateSummary"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse"
+      },
+      "Evidence": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "source_url": {
+            "type": "string",
+            "title": "Source Url"
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Retrieved At"
+          },
+          "published_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Date"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "key_facts": {
+            "items": {
+              "$ref": "#/components/schemas/KeyFact"
+            },
+            "type": "array",
+            "title": "Key Facts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "source_url",
+          "retrieved_at",
+          "summary",
+          "key_facts"
+        ],
+        "title": "Evidence"
+      },
+      "EvidenceCollected": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "evidence_collected",
+            "title": "Type",
+            "default": "evidence_collected"
+          },
+          "report": {
+            "$ref": "#/components/schemas/ResearchReport"
+          }
+        },
+        "type": "object",
+        "required": [
+          "report"
+        ],
+        "title": "EvidenceCollected"
+      },
+      "EvidenceSample": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          },
+          "evidence_count": {
+            "type": "integer",
+            "title": "Evidence Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "topic",
+          "evidence_count",
+          "created_at"
+        ],
+        "title": "EvidenceSample",
+        "description": "同梱の捜査結果(ブラウザから証拠品として選べる)。"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "JudgeScore": {
+        "properties": {
+          "order": {
+            "items": {
+              "$ref": "#/components/schemas/Side"
+            },
+            "type": "array",
+            "title": "Order"
+          },
+          "scores": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Side"
+            },
+            "type": "object",
+            "title": "Scores"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order",
+          "scores",
+          "rationale"
+        ],
+        "title": "JudgeScore",
+        "description": "裁判長の 1 回の評価。"
+      },
+      "JudgeScored": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "judge_scored",
+            "title": "Type",
+            "default": "judge_scored"
+          },
+          "score": {
+            "$ref": "#/components/schemas/JudgeScore"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score"
+        ],
+        "title": "JudgeScored"
+      },
+      "KeyFact": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "quote": {
+            "type": "string",
+            "title": "Quote"
+          },
+          "quote_verified": {
+            "type": "boolean",
+            "title": "Quote Verified"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "quote",
+          "quote_verified"
+        ],
+        "title": "KeyFact",
+        "description": "証拠品から取り出した事実。`quote` は取得本文からの抜き書き。"
+      },
+      "LLMCallInfo": {
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "model_key": {
+            "type": "string",
+            "title": "Model Key"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "structured"
+            ],
+            "title": "Kind"
+          },
+          "prompt_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Name"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "schema_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Name"
+          },
+          "structured_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured Mode"
+          },
+          "ttft_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ttft Ms"
+          },
+          "total_ms": {
+            "type": "number",
+            "title": "Total Ms"
+          },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "tokens_per_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Per S"
+          },
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts",
+            "default": 1
+          },
+          "retries": {
+            "type": "integer",
+            "title": "Retries",
+            "default": 0
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "messages": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Messages"
+          },
+          "response_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Text"
+          },
+          "reasoning_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Text"
+          },
+          "parsed": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parsed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "call_id",
+          "started_at",
+          "role",
+          "model_key",
+          "model",
+          "provider",
+          "kind",
+          "total_ms",
+          "success"
+        ],
+        "title": "LLMCallInfo",
+        "description": "LLM 呼び出しの計測記録(`llm.metrics.LLMCallRecord` と同じ形)。\n\ndomain は他のパッケージに依存しないため、同じ形をここで定義する。"
+      },
+      "LLMCallRecorded": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "llm_call_recorded",
+            "title": "Type",
+            "default": "llm_call_recorded"
+          },
+          "call": {
+            "$ref": "#/components/schemas/LLMCallInfo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "call"
+        ],
+        "title": "LLMCallRecorded"
+      },
+      "NextTurn": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "statement",
+              "verdict"
+            ],
+            "title": "Kind"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/DebatePhase"
+          },
+          "round": {
+            "type": "integer",
+            "title": "Round"
+          },
+          "side": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Side"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "by_human": {
+            "type": "boolean",
+            "title": "By Human",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "phase",
+          "round"
+        ],
+        "title": "NextTurn",
+        "description": "次に進む手番。"
+      },
+      "PenaltyApplied": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "penalty_applied",
+            "title": "Type",
+            "default": "penalty_applied"
+          },
+          "amount": {
+            "type": "integer",
+            "title": "Amount"
+          },
+          "remaining": {
+            "type": "integer",
+            "title": "Remaining"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount",
+          "remaining",
+          "reason"
+        ],
+        "title": "PenaltyApplied"
+      },
+      "PhaseStarted": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "phase_started",
+            "title": "Type",
+            "default": "phase_started"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/DebatePhase"
+          },
+          "round": {
+            "type": "integer",
+            "title": "Round",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "phase"
+        ],
+        "title": "PhaseStarted"
+      },
+      "ResearchReport": {
+        "properties": {
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "queries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Queries"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedSource"
+            },
+            "type": "array",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "topic",
+          "created_at",
+          "queries",
+          "evidence",
+          "skipped"
+        ],
+        "title": "ResearchReport",
+        "description": "1 回の捜査の結果。JSON 保存の単位。"
+      },
+      "RoleAssignment": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "model_key": {
+            "type": "string",
+            "title": "Model Key"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "base_url": {
+            "type": "string",
+            "title": "Base Url"
+          },
+          "json_schema": {
+            "type": "boolean",
+            "title": "Json Schema"
+          },
+          "json_mode": {
+            "type": "boolean",
+            "title": "Json Mode"
+          },
+          "streaming": {
+            "type": "boolean",
+            "title": "Streaming"
+          },
+          "max_concurrency": {
+            "type": "integer",
+            "title": "Max Concurrency"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "model_key",
+          "model",
+          "reasoning",
+          "provider",
+          "base_url",
+          "json_schema",
+          "json_mode",
+          "streaming",
+          "max_concurrency"
+        ],
+        "title": "RoleAssignment"
+      },
+      "SessionAborted": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "session_aborted",
+            "title": "Type",
+            "default": "session_aborted"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "SessionAborted"
+      },
+      "SessionListItem": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "awaiting_evidence",
+              "ready",
+              "in_progress",
+              "finished",
+              "aborted"
+            ],
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "topic",
+          "status",
+          "created_at"
+        ],
+        "title": "SessionListItem"
+      },
+      "SessionStarted": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "session_started",
+            "title": "Type",
+            "default": "session_started"
+          },
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "rounds": {
+            "type": "integer",
+            "title": "Rounds"
+          },
+          "models": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Models"
+          },
+          "human_side": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Side"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "penalty_gauge": {
+            "type": "integer",
+            "title": "Penalty Gauge",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "topic",
+          "mode",
+          "rounds",
+          "models"
+        ],
+        "title": "SessionStarted"
+      },
+      "SessionView": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          },
+          "rounds": {
+            "type": "integer",
+            "title": "Rounds"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "awaiting_evidence",
+              "ready",
+              "in_progress",
+              "finished",
+              "aborted"
+            ],
+            "title": "Status"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DebatePhase"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "round": {
+            "type": "integer",
+            "title": "Round"
+          },
+          "next_turn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextTurn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "running_task": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "models": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Models"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "statements": {
+            "items": {
+              "$ref": "#/components/schemas/Statement"
+            },
+            "type": "array",
+            "title": "Statements"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            },
+            "type": "array",
+            "title": "Claims"
+          },
+          "citation_issues": {
+            "items": {
+              "$ref": "#/components/schemas/CitationIssue"
+            },
+            "type": "array",
+            "title": "Citation Issues"
+          },
+          "judge_scores": {
+            "items": {
+              "$ref": "#/components/schemas/JudgeScore"
+            },
+            "type": "array",
+            "title": "Judge Scores"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Verdict"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "aborted": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aborted"
+          },
+          "human_side": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Side"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "penalty_gauge": {
+            "type": "integer",
+            "title": "Penalty Gauge"
+          },
+          "penalty_gauge_max": {
+            "type": "integer",
+            "title": "Penalty Gauge Max"
+          },
+          "pending_choices": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChoicesView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/ChoiceOption"
+            },
+            "type": "array",
+            "title": "Choices"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "topic",
+          "rounds",
+          "status",
+          "phase",
+          "round",
+          "next_turn",
+          "running_task",
+          "models",
+          "evidence",
+          "statements",
+          "claims",
+          "citation_issues",
+          "judge_scores",
+          "verdict",
+          "aborted",
+          "human_side",
+          "penalty_gauge",
+          "penalty_gauge_max",
+          "pending_choices",
+          "choices"
+        ],
+        "title": "SessionView"
+      },
+      "Side": {
+        "type": "string",
+        "enum": [
+          "affirmative",
+          "negative"
+        ],
+        "title": "Side"
+      },
+      "SkippedSource": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "reason"
+        ],
+        "title": "SkippedSource",
+        "description": "証拠品にしなかった情報源と理由。"
+      },
+      "Statement": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/DebatePhase"
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Round"
+          },
+          "turn": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Turn"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Text"
+          },
+          "cited_evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cited Evidence Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "side",
+          "phase",
+          "round",
+          "turn",
+          "text",
+          "cited_evidence_ids"
+        ],
+        "title": "Statement",
+        "description": "論者の発言。"
+      },
+      "StatementMade": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "statement_made",
+            "title": "Type",
+            "default": "statement_made"
+          },
+          "statement": {
+            "$ref": "#/components/schemas/Statement"
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statement"
+        ],
+        "title": "StatementMade"
+      },
+      "TaskAccepted": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "task": {
+            "$ref": "#/components/schemas/TaskView"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "task"
+        ],
+        "title": "TaskAccepted"
+      },
+      "TaskView": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "research",
+              "advance",
+              "run",
+              "choice"
+            ],
+            "title": "Kind"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "started_at"
+        ],
+        "title": "TaskView"
+      },
+      "TurnMetrics": {
+        "properties": {
+          "statement_id": {
+            "type": "string",
+            "title": "Statement Id"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/DebatePhase"
+          },
+          "round": {
+            "type": "integer",
+            "title": "Round"
+          },
+          "chars": {
+            "type": "integer",
+            "title": "Chars"
+          },
+          "ttft_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ttft Ms"
+          },
+          "total_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Ms"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "tokens_per_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Per S"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statement_id",
+          "side",
+          "phase",
+          "round",
+          "chars",
+          "ttft_ms",
+          "total_ms",
+          "output_tokens",
+          "tokens_per_s"
+        ],
+        "title": "TurnMetrics"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "Verdict": {
+        "properties": {
+          "winner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Side"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agreed": {
+            "type": "boolean",
+            "title": "Agreed"
+          },
+          "totals": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Side"
+            },
+            "type": "object",
+            "title": "Totals"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "decided_by": {
+            "type": "string",
+            "enum": [
+              "judge",
+              "penalty"
+            ],
+            "title": "Decided By",
+            "default": "judge"
+          }
+        },
+        "type": "object",
+        "required": [
+          "winner",
+          "agreed",
+          "totals",
+          "rationale"
+        ],
+        "title": "Verdict"
+      },
+      "VerdictDelivered": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "verdict_delivered",
+            "title": "Type",
+            "default": "verdict_delivered"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          }
+        },
+        "type": "object",
+        "required": [
+          "verdict"
+        ],
+        "title": "VerdictDelivered"
+      }
+    }
+  }
+}

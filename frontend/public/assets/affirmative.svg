@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260">
+  <!-- 肯定側の論者(オリジナルの仮素材) -->
+  <path d="M30 260 L44 150 Q100 118 156 150 L170 260 Z" fill="#1f4e8c"/>
+  <path d="M84 146 L100 200 L116 146 Z" fill="#f1f1f1"/>
+  <path d="M96 150 L100 190 L104 150 Z" fill="#e0a526"/>
+  <circle cx="100" cy="98" r="38" fill="#f0d0ae"/>
+  <path d="M60 94 Q58 52 100 50 Q146 52 140 96 Q132 70 110 66 Q84 76 60 94 Z" fill="#2b2b33"/>
+  <circle cx="86" cy="100" r="4" fill="#2b2b33"/>
+  <circle cx="114" cy="100" r="4" fill="#2b2b33"/>
+  <path d="M90 118 Q100 124 110 118" stroke="#8a5a44" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <circle cx="134" cy="176" r="10" fill="#e0a526"/>
+</svg>

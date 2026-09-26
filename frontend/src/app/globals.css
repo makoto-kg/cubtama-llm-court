@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+:root {
+  --court-wood: #3b2618;
+  --court-wood-light: #6b4528;
+  --court-ink: #f4ecdd;
+  --court-accent: #e0a526;
+}
+
+body {
+  background: #1a1410;
+  color: var(--court-ink);
+  font-family:
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", system-ui,
+    sans-serif;
+}
+
+/* カットイン(オリジナルの演出) */
+@keyframes cut-in {
+  0% {
+    transform: translateX(-120%) skewX(-12deg);
+    opacity: 0;
+  }
+  18% {
+    transform: translateX(0) skewX(-12deg);
+    opacity: 1;
+  }
+  78% {
+    transform: translateX(0) skewX(-12deg) scale(1.04);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(120%) skewX(-12deg);
+    opacity: 0;
+  }
+}
+
+.cut-in {
+  animation: cut-in 1.2s ease-in-out forwards;
+}
+
+@keyframes speaker-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(224, 165, 38, 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px rgba(224, 165, 38, 0.7));
+  }
+}
+
+.speaking {
+  animation: speaker-glow 1.6s ease-in-out infinite;
+}
+
+.caret::after {
+  content: "▍";
+  margin-left: 2px;
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}

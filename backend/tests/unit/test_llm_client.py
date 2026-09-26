@@ -5,6 +5,7 @@ import pytest
 
 from llm_court.config import ModelsConfig, Role
 from llm_court.llm import (
+    ChatChunk,
     ChatMessage,
     InMemoryRecorder,
     LLMClient,
@@ -257,3 +258,51 @@ async def test_structured_connection_error_is_not_retried(prompts: PromptLoader)
         await client.generate_structured(Role.DEBATER, MESSAGES, BenchArgument)
     assert len(fake.requests) == 1
     assert not recorder.records[0].success
+
+
+# --- 入出力の記録(思考ログ用) ---
+
+
+async def test_records_io_for_text(prompts: PromptLoader) -> None:
+    fake = FakeChatBackend(
+        [
+            FakeResponse(
+                chunks=[ChatChunk(reasoning="考え中"), ChatChunk(content="<think>x</think>本文")]
+            )
+        ]
+    )
+    client, recorder = make_client(fake, prompts)
+    await client.generate_text(Role.DEBATER, MESSAGES)
+    (record,) = recorder.records
+    assert record.messages == [{"role": "user", "content": "論題について答えて"}]
+    assert record.response_text == "<think>x</think>本文"  # 生の出力(前処理前)
+    assert record.reasoning_text == "考え中"
+    assert record.parsed is None
+
+
+async def test_records_io_for_structured_retry(prompts: PromptLoader) -> None:
+    fake = FakeChatBackend(load_recording("structured_retry"))
+    client, recorder = make_client(fake, prompts)
+    await client.generate_structured(Role.DEBATER, MESSAGES, BenchArgument)
+    (record,) = recorder.records
+    assert record.messages is not None
+    assert len(record.messages) == 3  # 最後の試行: 元の質問 + 直前の出力 + フィードバック
+    assert record.response_text is not None and "集中しやすい" in record.response_text
+    assert record.parsed is not None
+    assert record.parsed["reasons"] == ["通勤がない", "集中しやすい"]
+
+
+async def test_record_io_can_be_disabled(prompts: PromptLoader) -> None:
+    fake = FakeChatBackend([FakeResponse.text("本文")])
+    recorder = InMemoryRecorder()
+    client = LLMClient(
+        make_config(),
+        prompts=prompts,
+        structured_max_retries=0,
+        backend_factory=lambda _p: fake,
+        recorder=recorder,
+        record_io=False,
+    )
+    await client.generate_text(Role.DEBATER, MESSAGES)
+    assert recorder.records[0].messages is None
+    assert recorder.records[0].response_text is None

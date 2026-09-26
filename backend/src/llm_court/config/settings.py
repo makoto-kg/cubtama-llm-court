@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     llm_structured_max_retries: int = Field(default=2, ge=0)
     """構造化出力の検証失敗時に再試行する上限回数。"""
 
+    llm_record_io: bool = True
+    """LLM 呼び出しの入出力(メッセージ・生出力・思考部分・パース結果)を記録する(思考ログ用)。"""
+
+    llm_record_reasoning_max_chars: int = Field(default=4000, ge=0)
+    """記録する思考部分の最大文字数。"""
+
     searxng_url: str = "http://localhost:8080"
     """セルフホストの SearXNG のベース URL。"""
 
@@ -58,6 +64,9 @@ class Settings(BaseSettings):
 
     debate_output_dir: Path = Path("data/debates")
     """ディベートのイベントログ(JSONL)と法廷記録(Markdown)の保存先。"""
+
+    sample_evidence_dir: Path = Path("eval/evidence")
+    """API で選べる同梱の捜査結果(`llm-court research` の JSON)のディレクトリ。"""
 
     eval_output_dir: Path = Path("data/eval")
     """評価ハーネスの結果(CSV・Markdown・ディベートのログ)の保存先。"""

@@ -1,28 +1,43 @@
 # frontend
 
-Next.js(App Router)による法廷バトルADVの画面。**Phase 7 から着手する。それ以前はこのディレクトリに実装を追加しない。**
-リポジトリ全体のルールはルートの `AGENTS.md` を参照。
+Next.js(App Router)による法廷バトルADVの画面。
+リポジトリ全体のルールはルートの `AGENTS.md` を参照。設計判断は `docs/adr/0011-frontend-mvp.md`。
 
 ## 技術スタック
 
-- Next.js(App Router)+ TypeScript(strict)
-- Tailwind CSS
+- Next.js 16(App Router)+ TypeScript(strict)
+- Tailwind CSS 4
 - 状態管理: Zustand
-- パッケージ管理: pnpm
-- テスト: Vitest(単体)、Playwright(E2Eは最小限)
+- API クライアント: openapi-fetch(型は OpenAPI から生成)
+- パッケージ管理: pnpm(`packageManager` で固定)
+- Node.js 24(`.tool-versions` で固定。asdf を使う)
+- テスト: Vitest(単体)、Playwright(E2E は最小限。現時点では未導入)
 
-## コマンド(Phase 7 で整備)
+**Next.js 16 は学習データと API・規約が異なる場合がある。** 書く前に `node_modules/next/dist/docs/` の該当ガイドを読み、非推奨の警告に従う。
+
+## コマンド
 
 ```bash
 pnpm install
-pnpm dev             # 開発サーバー
+pnpm dev             # 開発サーバー(http://localhost:3000)。backend の `llm-court serve` も起動しておく
+pnpm build           # SPA として静的ビルド(out/ に出力)
 pnpm lint
 pnpm typecheck
 pnpm test
-pnpm gen:api         # backend の OpenAPI から API 型を生成
+pnpm gen:api         # backend の OpenAPI から API 型を生成(src/api/schema.d.ts)
 ```
 
+接続先は `NEXT_PUBLIC_API_ORIGIN`(既定 `http://127.0.0.1:8000`)。
+
 ## ルール
+
+### SPA(静的エクスポート)
+
+- `output: "export"` で SPA としてビルドできる状態を保つ。サーバーで動く機能は使わない
+  - 使わないもの: API Route / Route Handler、Server Actions、リクエスト時のサーバー fetch、cookies・headers、middleware / Proxy、rewrites / redirects、`next/image` の最適化
+- 動的パス(`[id]`)は使わず、クエリで渡す(例: `/court/?session=<id>`)。`useSearchParams` を使うコンポーネントは `Suspense` で包む
+- Server Components はビルド時に描画できるシェルにだけ使い、データの取得はクライアント(ブラウザ)から API に対して行う
+- 変更後は `pnpm build` が通り、`out/` に各ページの `index.html` が出ることを確認する
 
 ### Backend との関係
 
@@ -34,10 +49,11 @@ pnpm gen:api         # backend の OpenAPI から API 型を生成
 ### UI・演出
 
 - キャラクター、立ち絵、カットイン、UIはすべてオリジナルデザイン。既存作品の模倣をしない
-- 初期は仮素材で構わないが、差し替えやすいよう素材パスを一箇所で管理する
+- 素材のパスは `src/assets/manifest.ts` の一箇所で管理する(現在はオリジナルの仮素材の SVG)
 - 「思考ログ」パネル(LLMの入力・生出力・パース結果・トークン数・レイテンシ)はゲームの機能として実装する。開発者用の隠し機能にしない
 
 ### コード
 
 - Server Components を既定とし、インタラクションが必要な箇所のみ Client Components にする
-- コンポーネントは表示に専念させ、API呼び出しとストリーム処理はフック/ストアに寄せる
+- コンポーネントは表示に専念させ、API呼び出しとストリーム処理はフック(`src/hooks/`)/ストア(`src/store/`)に寄せる
+- 表示用の純粋な計算は `src/lib/` に置き、Vitest で単体テストを書く

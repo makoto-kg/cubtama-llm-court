@@ -1,9 +1,10 @@
 """REST と SSE のエンドポイント。"""
 
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from llm_court.api.context import ApiContext
@@ -11,8 +12,11 @@ from llm_court.api.redaction import redact_events
 from llm_court.api.schemas import (
     ChoicesView,
     ChooseRequest,
+    ConfigView,
     CreateSessionRequest,
     ErrorResponse,
+    EvidenceSample,
+    RoleAssignment,
     SessionListItem,
     SessionView,
     TaskAccepted,
@@ -22,6 +26,7 @@ from llm_court.api.schemas import (
 )
 from llm_court.api.sse import session_stream
 from llm_court.api.tasks import TaskKind
+from llm_court.config import Role
 from llm_court.domain import Event, ResearchReport
 from llm_court.engine.debate import (
     DebateEngine,
@@ -146,6 +151,70 @@ async def list_sessions(ctx: Ctx) -> list[SessionListItem]:
 )
 async def get_session(session_id: str, ctx: Ctx) -> SessionView:
     return _view(ctx, await _load(ctx, session_id))
+
+
+def _samples(ctx: ApiContext) -> dict[str, Path]:
+    directory = ctx.settings.sample_evidence_dir
+    if not directory.is_dir():
+        return {}
+    return {p.stem: p for p in sorted(directory.glob("*.json"))}
+
+
+@router.get("/evidence-samples", operation_id="listEvidenceSamples", tags=["evidence"])
+async def list_evidence_samples(ctx: Ctx) -> list[EvidenceSample]:
+    """同梱の捜査結果の一覧。SearXNG なしで始めるときに使う。"""
+    items: list[EvidenceSample] = []
+    for name, path in _samples(ctx).items():
+        report = ResearchReport.model_validate_json(path.read_text(encoding="utf-8"))
+        items.append(
+            EvidenceSample(
+                name=name,
+                topic=report.topic,
+                evidence_count=len(report.evidence),
+                created_at=report.created_at,
+            )
+        )
+    return items
+
+
+@router.post(
+    "/sessions/{session_id}/evidence/samples/{name}",
+    operation_id="useEvidenceSample",
+    tags=["evidence"],
+    responses=_ERRORS,
+)
+async def use_evidence_sample(session_id: str, name: str, ctx: Ctx) -> SessionView:
+    """同梱の捜査結果を証拠品として使う。`name` は一覧にあるものだけ受け付ける。"""
+    path = _samples(ctx).get(name)
+    if path is None:
+        raise HTTPException(status_code=404, detail=f"同梱の捜査結果 {name} はありません")
+    report = ResearchReport.model_validate_json(path.read_text(encoding="utf-8"))
+    return await set_evidence(session_id, report, ctx)
+
+
+@router.get("/config", operation_id="getConfig", tags=["system"])
+async def get_config(ctx: Ctx) -> ConfigView:
+    """役割ごとのモデル割り当て(api_key は返さない)。"""
+    config = ctx.llm.config
+    roles: list[RoleAssignment] = []
+    for role in Role:
+        r = config.resolve(role)
+        caps = r.provider.capabilities
+        roles.append(
+            RoleAssignment(
+                role=role.value,
+                model_key=r.model_key,
+                model=r.model.model,
+                reasoning=r.model.reasoning,
+                provider=r.provider_key,
+                base_url=r.provider.base_url,
+                json_schema=caps.json_schema,
+                json_mode=caps.json_mode,
+                streaming=caps.streaming,
+                max_concurrency=r.provider.max_concurrency,
+            )
+        )
+    return ConfigView(roles=roles)
 
 
 @router.post(

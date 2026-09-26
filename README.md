@@ -8,7 +8,6 @@ LLM は OpenAI 互換 API(LM Studio 等)だけを使い、完全ローカルで�
 - 設計判断の記録: [docs/adr/](docs/adr/)
 - 開発者向けのルールとコマンド: [AGENTS.md](AGENTS.md)、[backend/AGENTS.md](backend/AGENTS.md)
 
-現在はバックエンド(CLI・API)のみです。フロントエンドは未着手です。
 
 ## 必要なもの
 
@@ -58,6 +57,32 @@ uv run llm-court config check   # 割り当てを確認
 ```
 
 以降のコマンドはすべて `backend/` で実行します。
+
+## ブラウザで遊ぶ
+
+バックエンドの API サーバーと、フロントエンドの開発サーバーを起動します(フロントエンドは Node.js 24 と pnpm が必要)。
+
+```bash
+# ターミナル 1(backend/)
+uv run llm-court serve
+
+# ターミナル 2(frontend/)
+pnpm install
+pnpm dev
+```
+
+http://localhost:3000 を開きます。
+
+1. **タイトル**: モード(対戦 = 人間 vs LLM / 観戦 = LLM vs LLM)、あなたの陣営、証拠品の入手方法(同梱の捜査結果 / JSON ファイル / Web で捜査)、論題、反論の往復数を選んで「開廷」
+2. **捜査**(Web で捜査を選んだ場合): 進捗と、見つかった証拠品候補が増えていく
+3. **法廷**: 発言がタイプライター表示で流れる
+   - 観戦: 「次へ」または「判決まで自動で進める」
+   - 対戦: LLM 側は自動で進み、あなたの番で選択肢が出る
+   - 右側の「書記官の記録(思考ログ)」には、LLM への入力・生出力・パース結果・トークン数・レイテンシが表示される
+   - 「証拠品ファイル」で証拠品を確認できる
+4. **判決**: 勝敗、2 回の評価の採点表、裁判長の理由、あなたの選択(強さの公開)、計測、法廷記録
+
+`/settings/` で役割ごとのモデル割り当てを確認できます。フロントエンドは `pnpm build` で SPA として `frontend/out/` にビルドでき、任意の静的サーバーで配信できます(接続先は `NEXT_PUBLIC_API_ORIGIN`)。
 
 ## CLI で遊ぶ(人間 vs LLM)
 
@@ -110,6 +135,6 @@ uv run llm-court play "週休3日制を導入すべきか" \
 | `llm-court research "<テーマ>"` | テーマを Web で調べ、引用を検証した証拠品を作る |
 | `llm-court bench -n 3 -r debater` | 役割に割り当てたモデルの速度と構造化出力の成功率を測る |
 | `llm-court eval eval/specs/example.yaml` | 複数のモデル構成を同じテーマで比較したレポートを作る |
-| `llm-court serve` | API サーバー(REST + SSE)を起動する(`http://127.0.0.1:8000/docs`) |
+| `llm-court serve` | API サーバー(REST + SSE)を起動する(`http://127.0.0.1:8000/docs`)。ブラウザ版はこれに接続する |
 
 `uv run llm-court --help` と、各コマンドの `--help` で詳細を確認できます。
