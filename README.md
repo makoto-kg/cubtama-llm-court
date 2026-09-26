@@ -135,6 +135,7 @@ uv run llm-court play "週休3日制を導入すべきか" \
 | `llm-court research "<テーマ>"` | テーマを Web で調べ、引用を検証した証拠品を作る |
 | `llm-court bench -n 3 -r debater` | 役割に割り当てたモデルの速度と構造化出力の成功率を測る |
 | `llm-court eval eval/specs/example.yaml` | 複数のモデル構成を同じテーマで比較したレポートを作る |
+| `llm-court case generate "<テーマ>" [-e 捜査結果.json]` | 裁判型の架空の事件を生成し、整合性チェックと solver で検証して `data/cases/` に保存する(`case validate` / `case list` もある) |
 | `llm-court serve` | API サーバー(REST + SSE)を起動する(`http://127.0.0.1:8000/docs`)。ブラウザ版はこれに接続する |
 
 `uv run llm-court --help` と、各コマンドの `--help` で詳細を確認できます。

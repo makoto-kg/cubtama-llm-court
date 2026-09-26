@@ -30,6 +30,19 @@ class ResearchSettings(BaseModel):
     output_dir: Path = Path("data/research")
 
 
+class ScenarioSettings(BaseModel):
+    """裁判型の事件生成の設定。"""
+
+    case_dir: Path = Path("data/cases")
+    """生成した事件(JSON)の保存先。"""
+    max_regenerations: int = Field(default=3, ge=0)
+    """整合性チェックや solver 検証に失敗したときに作り直す上限回数。"""
+    draft_retries: int = Field(default=2, ge=0)
+    """各段階の出力の参照が不正なとき、問題点を伝えて作り直す上限回数。"""
+    solver_runs: int = Field(default=2, ge=1)
+    """solver に解かせる回数(一意性の確認のため複数回)。"""
+
+
 class Settings(BaseSettings):
     """アプリケーション全体の設定。環境変数は `LLM_COURT_` プレフィックスで上書きできる。"""
 
@@ -78,6 +91,7 @@ class Settings(BaseSettings):
     """SSE でイベントがないときにキープアライブを送る間隔。"""
 
     research: ResearchSettings = ResearchSettings()
+    scenario: ScenarioSettings = ScenarioSettings()
     """環境変数では `LLM_COURT_RESEARCH__TARGET_EVIDENCE=6` のように指定する。"""
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"

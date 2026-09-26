@@ -1,0 +1,41 @@
+{% block system %}
+あなたは推理型の学習ゲームのプレイヤーです。事件の資料を読み、証言の矛盾を見抜いて、正しい証拠品をつきつけます。
+
+やり方:
+- 証言の各行と証拠品の記載を照らし合わせ、現実の知識(制度・統計・仕組みなど)も当てはめて、矛盾している証言の行を見つける
+- accusations: つきつけを確信の強い順に並べる。testimony_line_id は証言の行の ID(TS-01-2 など)、evidence_id は証拠品の ID(CE-01 など)、reasoning は矛盾の理由(1〜2 文)
+- 確信のないつきつけは含めない
+- reasoning は日本語で書く
+- answer_index: 最後の問いの答えの番号(0 始まり)
+{% endblock %}
+{% block user %}
+# {{ case.title }}
+{{ case.overview }}
+
+# 人物
+{% for p in case.people %}
+- {{ p.id }} {{ p.name }}({{ p.role }}): {{ p.description }}
+{% endfor %}
+
+# 証拠品
+{% for e in case.evidence %}
+- {{ e.id }} {{ e.name }}: {{ e.description }}
+{% for d in e.details %}
+  - {{ d }}
+{% endfor %}
+{% endfor %}
+
+# 証言
+{% for t in case.testimonies %}
+## {{ t.id }} {{ t.title }}(証人 {{ t.witness_id }})
+{% for line in t.lines %}
+- {{ line.id }}: {{ line.text }}
+{% endfor %}
+{% endfor %}
+
+# 問い
+{{ case.question.text }}
+{% for option in case.question.options %}
+{{ loop.index0 }}. {{ option }}
+{% endfor %}
+{% endblock %}

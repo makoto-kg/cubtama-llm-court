@@ -30,6 +30,9 @@ uv run llm-court debate "<テーマ>" -r 3  # LLM 同士のディベート(--evi
 uv run llm-court play "<テーマ>" -e eval/evidence/basic-income.json --reveal  # 人間 vs LLM を CLI で遊ぶ(シナリオ検証用。q で中断、--resume で再開)
 uv run llm-court eval eval/specs/example.yaml  # モデル構成の比較レポートを data/eval/ に出力
 uv run llm-court eval-report data/eval/<実行>  # 保存済みの評価結果からレポートを作り直す
+uv run llm-court case generate "<テーマ>" -e eval/evidence/four-day-week.json  # 裁判型の事件を生成・検証して data/cases/ に保存
+uv run llm-court case validate <case_id> # 事件を検証し直す(整合性チェック + solver)
+uv run llm-court case list               # 生成済みの事件の一覧
 uv run llm-court serve                   # API サーバー(http://127.0.0.1:8000/api、ドキュメントは /docs)
 uv run llm-court openapi -o openapi.json # OpenAPI スキーマを出力(フロントエンドの型生成用)
 uv run pre-commit install                # pre-commit フック(ルートの .pre-commit-config.yaml)を有効化

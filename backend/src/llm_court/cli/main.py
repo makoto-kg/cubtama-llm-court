@@ -18,6 +18,7 @@ from rich.prompt import Prompt
 from rich.status import Status
 from rich.table import Table
 
+from llm_court.cli.case import case_app
 from llm_court.cli.play import PlayLoop
 from llm_court.config import ConfigError, ModelsConfig, Role, Settings, load_models_config
 from llm_court.domain import (
@@ -61,6 +62,7 @@ app = typer.Typer(
 )
 config_app = typer.Typer(help="設定ファイルの確認。", no_args_is_help=True)
 app.add_typer(config_app, name="config")
+app.add_typer(case_app, name="case")
 
 console = Console()
 
@@ -547,21 +549,10 @@ async def _engine_context(
     research: bool,
 ) -> AsyncGenerator[tuple[DebateEngine, EventStore]]:
     """CLI 用にイベントストア・LLM・(必要なら)捜査パイプラインをつないだエンジンを用意する。"""
-    research_settings = settings.research
     store = await EventStore.open(settings.database_path)
     try:
         async with client, http_client_factory() as http:
-            pipeline = ResearchPipeline(
-                client,
-                prompts,
-                SearXNGClient(
-                    settings.searxng_url, timeout_s=research_settings.fetch_timeout_s, client=http
-                ),
-                PageFetcher(
-                    research_settings, client=http, cache=PageCache(research_settings.cache_dir)
-                ),
-                research_settings,
-            )
+            pipeline = research_pipeline(settings, client, prompts, http)
             yield (
                 DebateEngine(
                     llm=client,
@@ -577,6 +568,21 @@ async def _engine_context(
     finally:
         observer.close()
         await store.aclose()
+
+
+def research_pipeline(
+    settings: Settings, client: LLMClient, prompts: PromptLoader, http: httpx.AsyncClient
+) -> ResearchPipeline:
+    research_settings = settings.research
+    return ResearchPipeline(
+        client,
+        prompts,
+        SearXNGClient(
+            settings.searxng_url, timeout_s=research_settings.fetch_timeout_s, client=http
+        ),
+        PageFetcher(research_settings, client=http, cache=PageCache(research_settings.cache_dir)),
+        research_settings,
+    )
 
 
 def _save_outputs(settings: Settings, events: list[Event]) -> None:

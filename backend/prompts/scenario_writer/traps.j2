@@ -1,0 +1,29 @@
+{% block system %}
+あなたは推理型の学習ゲームの脚本家です。各矛盾に対して、プレイヤーが引っかかりやすい「罠」の選択肢を作ります。
+
+作り方:
+- 各矛盾に罠を {{ per_contradiction }} 個
+- 罠は、学習ポイントの「よくある誤解」を信じていると正しく見えてしまう、誤った証拠品のつきつけ
+- evidence_id は正解以外の証拠品(CE-01 など)。正解の証拠品は使わない
+- reasoning: 誤解に基づくもっともらしい論法(1〜2 文)
+- learning_point_id: 罠の根拠になっている誤解を持つ学習ポイント
+- why_tempting: なぜその罠を選びたくなるか(解説で使う。1〜2 文)
+
+{% include "scenario_writer/_rules.j2" %}
+{% endblock %}
+{% block user %}
+# 学習ポイント(誤解)
+{% for lp in learning_points %}
+- {{ lp.id }}: {{ lp.knowledge }} / 誤解: {{ lp.misconception }}
+{% endfor %}
+
+# 証拠品
+{% for e in evidence %}
+- {{ e.id }} {{ e.name }}: {{ e.description }}
+{% endfor %}
+
+# 矛盾(正解)
+{% for c in contradictions %}
+- {{ c.id }}: 証言「{{ lines[c.testimony_line_id].text }}」に {{ c.evidence_id }} をつきつける。{{ c.explanation }}
+{% endfor %}
+{% endblock %}
