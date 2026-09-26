@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "LLM_COURT_MODELS_CONFIG_PATH=config/models.local.yaml",
+        "uv", "run", "--directory", "backend", "llm-court", "serve", "--port", "8000"
+      ],
+      "port": 8000
+    }
+  ]
+}

@@ -62,6 +62,12 @@ class Settings(BaseSettings):
     eval_output_dir: Path = Path("data/eval")
     """評価ハーネスの結果(CSV・Markdown・ディベートのログ)の保存先。"""
 
+    api_cors_origins: list[str] = ["http://localhost:3000"]
+    """API の CORS で許可するオリジン(フロントエンドの開発サーバー)。"""
+
+    api_sse_keepalive_s: float = Field(default=15.0, gt=0)
+    """SSE でイベントがないときにキープアライブを送る間隔。"""
+
     research: ResearchSettings = ResearchSettings()
     """環境変数では `LLM_COURT_RESEARCH__TARGET_EVIDENCE=6` のように指定する。"""
 

@@ -29,6 +29,8 @@ uv run llm-court research "<テーマ>"     # 証拠品を集めて表示し dat
 uv run llm-court debate "<テーマ>" -r 3  # LLM 同士のディベート(--evidence で既存の捜査結果を使う)
 uv run llm-court eval eval/specs/example.yaml  # モデル構成の比較レポートを data/eval/ に出力
 uv run llm-court eval-report data/eval/<実行>  # 保存済みの評価結果からレポートを作り直す
+uv run llm-court serve                   # API サーバー(http://127.0.0.1:8000/api、ドキュメントは /docs)
+uv run llm-court openapi -o openapi.json # OpenAPI スキーマを出力(フロントエンドの型生成用)
 uv run pre-commit install                # pre-commit フック(ルートの .pre-commit-config.yaml)を有効化
 ```
 
@@ -71,3 +73,10 @@ CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(P
 - 単体テストでは実LLM・実ネットワークを呼ばない。`tests/fixtures/` の録画済み応答を返すフェイククライアントを使う
 - 実LLMサーバーや SearXNG を使うテストには `@pytest.mark.integration` を付ける
 - 構造化出力のフォールバック・リトライ、引用検証、イベントからの状態再構築は必ず単体テストを書く
+
+## API(`src/llm_court/api/`)
+
+- 流れ: `POST /api/sessions` → `PUT …/evidence`(または `POST …/research`)→ `POST …/advance`(1 手)/ `POST …/run`(判決まで)
+- `GET …/stream` は SSE。`debate`(永続イベント、id=seq)/ `turn` / `token` / `progress` / `task` を送り、判決・中断で閉じる
+- 状態はリクエストのたびにイベントストアから再構築する。API 層で状態を保持しない
+- 手順違反は 409、存在しないセッションは 404

@@ -260,3 +260,14 @@ def test_eval_command_invalid_spec(tmp_path: Path) -> None:
     result = runner.invoke(app, ["eval", str(spec)])
     assert result.exit_code == 1
     assert "評価仕様のエラー" in result.output
+
+
+def test_openapi_command(tmp_path: Path) -> None:
+    import json
+
+    out = tmp_path / "openapi.json"
+    result = runner.invoke(app, ["openapi", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    schema = json.loads(out.read_text(encoding="utf-8"))
+    assert schema["info"]["title"] == "llm-court API"
+    assert "/api/sessions" in schema["paths"]

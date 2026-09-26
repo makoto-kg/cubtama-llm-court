@@ -587,5 +587,41 @@ def eval_report(
     _report(result, out_dir)
 
 
+@app.command()
+def serve(
+    host: Annotated[str, typer.Option(help="待ち受けるアドレス")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="待ち受けるポート")] = 8000,
+) -> None:
+    """API サーバー(REST + SSE)を起動する。"""
+    import uvicorn
+
+    from llm_court.api import create_app
+
+    settings = Settings()
+    api = create_app(
+        settings, backend_factory=backend_factory, http_client_factory=http_client_factory
+    )
+    uvicorn.run(api, host=host, port=port, log_level=settings.log_level.lower())
+
+
+@app.command()
+def openapi(
+    out: Annotated[
+        Path | None, typer.Option("--out", "-o", help="出力先(省略すると標準出力)")
+    ] = None,
+) -> None:
+    """API の OpenAPI スキーマ(JSON)を出力する(フロントエンドの型生成用)。"""
+    import json
+
+    from llm_court.api import create_app
+
+    schema = json.dumps(create_app(Settings()).openapi(), ensure_ascii=False, indent=2)
+    if out is None:
+        typer.echo(schema)
+    else:
+        out.write_text(schema + "\n", encoding="utf-8")
+        console.print(f"保存しました: {out}")
+
+
 if __name__ == "__main__":
     app()

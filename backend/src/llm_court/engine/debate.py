@@ -6,7 +6,9 @@
 
 import asyncio
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
+from contextlib import asynccontextmanager
+from typing import Literal
 
 from llm_court.agents.claim_extractor import ClaimExtractorAgent
 from llm_court.agents.debater import DebaterAgent
@@ -46,6 +48,26 @@ ResearchFn = Callable[[str, Callable[[str], None]], Awaitable[ResearchReport]]
 
 class DebateError(Exception):
     """ディベートを続行できない。"""
+
+
+class SessionStateError(DebateError):
+    """現在の状態ではその操作をできない(手順違反)。セッションは中断しない。"""
+
+
+class SessionNotFoundError(DebateError):
+    """指定したセッションがない。"""
+
+
+Step = Turn | Literal["verdict"]
+
+
+def next_step(state: DebateState, mode: DebateMode) -> Step | None:
+    """状態から次の手番を決める。証拠品がない・閉廷している場合は None。"""
+    if state.finished or state.research is None:
+        return None
+    schedule = mode.schedule(state.rounds)
+    done = len(state.statements)
+    return schedule[done] if done < len(schedule) else "verdict"
 
 
 class DebateObserver:
@@ -88,6 +110,9 @@ class DebateEngine:
         self.session_id = ""
         self.state = DebateState()
 
+    def set_observer(self, observer: DebateObserver) -> None:
+        self._observer = observer
+
     # --- イベント ---
 
     async def _emit(self, event: Event) -> Event:
@@ -112,13 +137,10 @@ class DebateEngine:
 
     # --- 進行 ---
 
-    async def run(
-        self, topic: str, rounds: int, *, evidence: ResearchReport | None = None
-    ) -> DebateState:
+    async def start(self, topic: str, rounds: int) -> str:
+        """開廷する(`SessionStarted` を記録する)。セッション ID を返す。"""
         if rounds < 1:
             raise ValueError("rounds は 1 以上にしてください")
-        if evidence is None and self._research is None:
-            raise ValueError("証拠品も捜査手段も指定されていません")
         self.session_id = uuid.uuid4().hex[:12]
         self.state = DebateState()
         await self._emit(
@@ -132,16 +154,71 @@ class DebateEngine:
                 },
             )
         )
+        return self.session_id
+
+    async def resume(self, session_id: str) -> DebateState:
+        """イベントストアから状態を再構築して、続きを進められるようにする。"""
+        events = await self._store.load(session_id)
+        if not events:
+            raise SessionNotFoundError(session_id)
+        self.session_id = session_id
+        self.state = DebateState.from_events(events)
+        return self.state
+
+    async def collect_evidence(self, evidence: ResearchReport | None = None) -> None:
+        """証拠品をそろえる。`evidence` がなければ捜査する。"""
+        state = self.state
+        if state.session_id is None or state.topic is None:
+            raise SessionStateError("開廷していません")
+        if state.finished:
+            raise SessionStateError("閉廷しています")
+        if state.research is not None:
+            raise SessionStateError("証拠品はすでに集まっています")
+        if evidence is None and self._research is None:
+            raise SessionStateError("証拠品も捜査手段も指定されていません")
+        async with self._abort_on_error():
+            await self._collect_evidence(state.topic, evidence)
+
+    async def advance(self) -> Step:
+        """次の 1 手(発言または判決)を進め、進めた手を返す。"""
+        step = next_step(self.state, self._mode)
+        if step is None:
+            if self.state.research is None and not self.state.finished:
+                raise SessionStateError("証拠品がまだありません")
+            raise SessionStateError("これ以上進める手番がありません")
+        assert self.state.topic is not None
+        topic = self.state.topic
+        async with self._abort_on_error():
+            if step == "verdict":
+                if self.state.phase is not DebatePhase.VERDICT:
+                    await self._emit(PhaseStarted(phase=DebatePhase.VERDICT))
+                await self._deliver_verdict(topic)
+            else:
+                if (self.state.phase, self.state.round) != (step.phase, step.round):
+                    await self._emit(PhaseStarted(phase=step.phase, round=step.round))
+                await self._statement(topic, step)
+        return step
+
+    async def run_to_end(self) -> DebateState:
+        while next_step(self.state, self._mode) is not None:
+            await self.advance()
+        return self.state
+
+    async def run(
+        self, topic: str, rounds: int, *, evidence: ResearchReport | None = None
+    ) -> DebateState:
+        """開廷から判決まで一度に進める(CLI・評価ハーネス用)。"""
+        if evidence is None and self._research is None:
+            raise ValueError("証拠品も捜査手段も指定されていません")
+        await self.start(topic, rounds)
+        await self.collect_evidence(evidence)
+        return await self.run_to_end()
+
+    @asynccontextmanager
+    async def _abort_on_error(self) -> AsyncGenerator[None]:
+        """処理中の例外は `SessionAborted` として記録してから送出する。"""
         try:
-            await self._collect_evidence(topic, evidence)
-            current: tuple[DebatePhase, int] | None = None
-            for turn in self._mode.schedule(rounds):
-                if current != (turn.phase, turn.round):
-                    current = (turn.phase, turn.round)
-                    await self._emit(PhaseStarted(phase=turn.phase, round=turn.round))
-                await self._statement(topic, turn)
-            await self._emit(PhaseStarted(phase=DebatePhase.VERDICT))
-            await self._deliver_verdict(topic)
+            yield
         except asyncio.CancelledError:
             await self._flush_llm_calls()
             await self._emit(SessionAborted(reason="中断されました"))
@@ -150,7 +227,6 @@ class DebateEngine:
             await self._flush_llm_calls()
             await self._emit(SessionAborted(reason=f"{type(e).__name__}: {e}"))
             raise
-        return self.state
 
     async def _collect_evidence(self, topic: str, evidence: ResearchReport | None) -> None:
         role: str | None = None  # 既存の捜査結果を使う場合は LLM で生成していない

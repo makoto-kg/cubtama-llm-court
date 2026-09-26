@@ -1,0 +1,370 @@
+import asyncio
+import json
+from collections.abc import AsyncIterator, Callable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import httpx
+import pytest
+from fastapi import FastAPI
+
+from llm_court.api import create_app
+from llm_court.api.context import ApiContext
+from llm_court.config import ResearchSettings, Settings
+from llm_court.domain import ResearchReport
+from llm_court.llm import ChatRequest
+from tests.debate_fakes import DebateResponder
+from tests.fakes import FakeChatBackend, FakeResponse
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+
+
+@dataclass
+class Api:
+    app: FastAPI
+    client: httpx.AsyncClient
+    fake: FakeChatBackend
+
+    @property
+    def ctx(self) -> ApiContext:
+        ctx: ApiContext = self.app.state.ctx
+        return ctx
+
+    async def wait(self, session_id: str) -> None:
+        await self.ctx.tasks.wait(session_id)
+
+
+def make_settings(tmp_path: Path) -> Settings:
+    return Settings(
+        database_path=tmp_path / "db.sqlite",
+        prompts_dir=BACKEND_ROOT / "prompts",
+        models_config_path=BACKEND_ROOT / "config/models.yaml",
+        api_sse_keepalive_s=0.05,
+        research=ResearchSettings(cache_dir=tmp_path / "cache"),
+    )
+
+
+async def open_api(
+    tmp_path: Path, responder: Callable[[ChatRequest], FakeResponse] | None = None
+) -> tuple[Api, Any]:
+    fake = FakeChatBackend(responder=responder or DebateResponder())
+    app = create_app(make_settings(tmp_path), backend_factory=lambda _p: fake)
+    lifespan = app.router.lifespan_context(app)
+    await lifespan.__aenter__()
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
+    return Api(app=app, client=client, fake=fake), lifespan
+
+
+@pytest.fixture
+async def api(tmp_path: Path) -> AsyncIterator[Api]:
+    api, lifespan = await open_api(tmp_path)
+    try:
+        yield api
+    finally:
+        await api.client.aclose()
+        await lifespan.__aexit__(None, None, None)
+
+
+async def create(api: Api, rounds: int = 1) -> str:
+    response = await api.client.post("/api/sessions", json={"topic": "論題", "rounds": rounds})
+    assert response.status_code == 201, response.text
+    return response.json()["session_id"]
+
+
+async def put_evidence(api: Api, session_id: str, report: ResearchReport) -> dict[str, Any]:
+    response = await api.client.put(
+        f"/api/sessions/{session_id}/evidence",
+        content=report.model_dump_json(),
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def parse_sse(body: str) -> list[dict[str, Any]]:
+    messages: list[dict[str, Any]] = []
+    for block in body.split("\n\n"):
+        fields: dict[str, Any] = {}
+        for line in block.splitlines():
+            if line.startswith(":"):
+                continue
+            key, _, value = line.partition(": ")
+            fields[key] = value
+        if "event" in fields:
+            fields["data"] = json.loads(fields["data"])
+            messages.append(fields)
+    return messages
+
+
+async def test_step_by_step_until_verdict(api: Api, research_report: ResearchReport) -> None:
+    session_id = await create(api)
+    view = (await api.client.get(f"/api/sessions/{session_id}")).json()
+    assert view["status"] == "awaiting_evidence"
+    assert view["next_turn"] is None
+
+    response = await api.client.post(f"/api/sessions/{session_id}/advance")
+    assert response.status_code == 409
+    assert "証拠品" in response.json()["detail"]
+
+    view = await put_evidence(api, session_id, research_report)
+    assert view["status"] == "ready"
+    assert view["next_turn"] == {
+        "kind": "statement",
+        "phase": "opening",
+        "round": 0,
+        "side": "affirmative",
+    }
+    response = await api.client.put(
+        f"/api/sessions/{session_id}/evidence",
+        content=research_report.model_dump_json(),
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 409
+
+    turns: list[dict[str, Any]] = []
+    for _ in range(7):  # 発言 6 + 判決
+        response = await api.client.post(f"/api/sessions/{session_id}/advance")
+        assert response.status_code == 202, response.text
+        assert response.json()["task"]["kind"] == "advance"
+        await api.wait(session_id)
+        view = (await api.client.get(f"/api/sessions/{session_id}")).json()
+        turns.append(view["next_turn"])
+
+    assert [t["phase"] if t else None for t in turns] == [
+        "opening",
+        "rebuttal",
+        "rebuttal",
+        "closing",
+        "closing",
+        "verdict",
+        None,
+    ]
+    assert view["status"] == "finished"
+    assert view["verdict"]["winner"] == "affirmative"
+    assert len(view["statements"]) == 6
+    assert view["running_task"] is None
+
+    response = await api.client.post(f"/api/sessions/{session_id}/advance")
+    assert response.status_code == 409
+    assert "閉廷" in response.json()["detail"]
+
+    record = await api.client.get(f"/api/sessions/{session_id}/record")
+    assert record.headers["content-type"].startswith("text/markdown")
+    assert record.text.startswith("# 法廷記録: 論題")
+
+    summary = (await api.client.get(f"/api/sessions/{session_id}/summary")).json()
+    assert summary["llm_calls"] == 14
+    assert len(summary["turns"]) == 6
+
+    events = (await api.client.get(f"/api/sessions/{session_id}/events")).json()
+    assert events[0]["type"] == "session_started"
+    assert events[-1]["type"] == "verdict_delivered"
+    later = (await api.client.get(f"/api/sessions/{session_id}/events?after=3")).json()
+    assert [e["seq"] for e in later] == [e["seq"] for e in events if e["seq"] > 3]
+
+    sessions = (await api.client.get("/api/sessions")).json()
+    assert [(s["session_id"], s["status"]) for s in sessions] == [(session_id, "finished")]
+
+
+async def test_run_with_sse(api: Api, research_report: ResearchReport) -> None:
+    session_id = await create(api)
+    await put_evidence(api, session_id, research_report)
+
+    stream = asyncio.create_task(api.client.get(f"/api/sessions/{session_id}/stream"))
+    for _ in range(100):  # 購読が始まるのを待つ
+        if api.ctx.hub.subscriber_count(session_id):
+            break
+        await asyncio.sleep(0.01)
+    response = await api.client.post(f"/api/sessions/{session_id}/run")
+    assert response.status_code == 202
+    body = (await asyncio.wait_for(stream, timeout=10)).text
+    messages = parse_sse(body)
+
+    kinds = [m["event"] for m in messages]
+    assert kinds[0] == "debate"  # 履歴(開廷・証拠品)から始まる
+    assert {"turn", "token", "task"} <= set(kinds)
+    debate = [m for m in messages if m["event"] == "debate"]
+    seqs = [int(m["id"]) for m in debate]
+    assert seqs == sorted(seqs) and len(seqs) == len(set(seqs))
+    assert debate[-1]["data"]["type"] == "verdict_delivered"
+    assert messages[-1] == debate[-1]  # 判決で閉じる
+
+    first_turn = next(m for m in messages if m["event"] == "turn")["data"]
+    assert first_turn == {"phase": "opening", "round": 0, "side": "affirmative"}
+    tokens = "".join(
+        m["data"]["text"]
+        for m in messages
+        if m["event"] == "token"
+        and m["data"]["phase"] == "opening"
+        and m["data"]["side"] == "affirmative"
+    )
+    statements = [m["data"]["statement"] for m in debate if m["data"]["type"] == "statement_made"]
+    assert tokens == statements[0]["text"]
+    assert any(m["data"] == {"kind": "run", "status": "started"} for m in messages)
+
+
+async def test_sse_replay_after_finish(api: Api, research_report: ResearchReport) -> None:
+    session_id = await create(api)
+    await put_evidence(api, session_id, research_report)
+    await api.client.post(f"/api/sessions/{session_id}/run")
+    await api.wait(session_id)
+    events = (await api.client.get(f"/api/sessions/{session_id}/events")).json()
+
+    # Last-Event-ID 以降だけが再送され、判決で閉じる
+    response = await api.client.get(
+        f"/api/sessions/{session_id}/stream", headers={"Last-Event-ID": "5"}
+    )
+    replay = parse_sse(response.text)
+    assert [int(m["id"]) for m in replay] == [e["seq"] for e in events if e["seq"] > 5]
+
+    # すべて受信済みなら何も送らずに閉じる
+    last = events[-1]["seq"]
+    response = await api.client.get(f"/api/sessions/{session_id}/stream?after={last}")
+    assert parse_sse(response.text) == []
+
+
+async def test_not_found(api: Api) -> None:
+    for method, path in [
+        ("GET", "/api/sessions/nope"),
+        ("POST", "/api/sessions/nope/advance"),
+        ("POST", "/api/sessions/nope/run"),
+        ("POST", "/api/sessions/nope/research"),
+        ("GET", "/api/sessions/nope/stream"),
+        ("GET", "/api/sessions/nope/events"),
+        ("GET", "/api/sessions/nope/record"),
+        ("GET", "/api/sessions/nope/summary"),
+    ]:
+        response = await api.client.request(method, path)
+        assert response.status_code == 404, (method, path)
+
+
+async def test_validation_error(api: Api) -> None:
+    response = await api.client.post("/api/sessions", json={"topic": "", "rounds": 0})
+    assert response.status_code == 422
+
+
+async def test_task_conflict(tmp_path: Path, research_report: ResearchReport) -> None:
+    responder = DebateResponder()
+
+    def slow(request: ChatRequest) -> FakeResponse:
+        response = responder(request)
+        return response.model_copy(update={"delay_s": 0.05})
+
+    api, lifespan = await open_api(tmp_path, slow)
+    try:
+        session_id = await create(api)
+        await put_evidence(api, session_id, research_report)
+        assert (await api.client.post(f"/api/sessions/{session_id}/run")).status_code == 202
+        view = (await api.client.get(f"/api/sessions/{session_id}")).json()
+        assert view["running_task"]["kind"] == "run"
+        for path in ("advance", "run", "research"):
+            response = await api.client.post(f"/api/sessions/{session_id}/{path}")
+            assert response.status_code == 409, path
+        await api.wait(session_id)
+        view = (await api.client.get(f"/api/sessions/{session_id}")).json()
+        assert view["status"] == "finished"
+    finally:
+        await api.client.aclose()
+        await lifespan.__aexit__(None, None, None)
+
+
+async def test_parallel_sessions_keep_llm_calls_separate(
+    api: Api, research_report: ResearchReport
+) -> None:
+    ids = [await create(api), await create(api)]
+    for session_id in ids:
+        await put_evidence(api, session_id, research_report)
+    for session_id in ids:
+        assert (await api.client.post(f"/api/sessions/{session_id}/run")).status_code == 202
+    await asyncio.gather(*(api.wait(i) for i in ids))
+
+    call_ids: list[set[str]] = []
+    for session_id in ids:
+        events = (await api.client.get(f"/api/sessions/{session_id}/events")).json()
+        calls = [e["call"]["call_id"] for e in events if e["type"] == "llm_call_recorded"]
+        assert len(calls) == 14
+        call_ids.append(set(calls))
+    assert not call_ids[0] & call_ids[1]
+
+
+async def test_research_task(api: Api, research_report: ResearchReport) -> None:
+    progress: list[str] = []
+
+    class StubResearch:
+        async def run(
+            self, topic: str, on_progress: Callable[[str], None] | None = None
+        ) -> ResearchReport:
+            if on_progress:
+                on_progress("検索中")
+            progress.append(topic)
+            return research_report
+
+    api.ctx.research = StubResearch()
+    session_id = await create(api)
+    response = await api.client.post(f"/api/sessions/{session_id}/research")
+    assert response.status_code == 202
+    await api.wait(session_id)
+    assert progress == ["論題"]
+    view = (await api.client.get(f"/api/sessions/{session_id}")).json()
+    assert view["status"] == "ready"
+    assert len(view["evidence"]) == 2
+    response = await api.client.post(f"/api/sessions/{session_id}/research")
+    assert response.status_code == 409
+
+
+async def test_state_is_rebuilt_after_restart(
+    tmp_path: Path, research_report: ResearchReport
+) -> None:
+    api, lifespan = await open_api(tmp_path)
+    try:
+        session_id = await create(api)
+        await put_evidence(api, session_id, research_report)
+        await api.client.post(f"/api/sessions/{session_id}/advance")
+        await api.wait(session_id)
+        before = (await api.client.get(f"/api/sessions/{session_id}")).json()
+    finally:
+        await api.client.aclose()
+        await lifespan.__aexit__(None, None, None)
+
+    # 同じ DB で起動し直す
+    api, lifespan = await open_api(tmp_path)
+    try:
+        after = (await api.client.get(f"/api/sessions/{session_id}")).json()
+        assert after == before
+        assert after["next_turn"]["side"] == "negative"
+        await api.client.post(f"/api/sessions/{session_id}/run")
+        await api.wait(session_id)
+        final = (await api.client.get(f"/api/sessions/{session_id}")).json()
+        assert final["status"] == "finished"
+    finally:
+        await api.client.aclose()
+        await lifespan.__aexit__(None, None, None)
+
+
+async def test_failed_task_aborts_session(tmp_path: Path, research_report: ResearchReport) -> None:
+    api, lifespan = await open_api(tmp_path, lambda _r: FakeResponse.text(""))
+    try:
+        session_id = await create(api)
+        await put_evidence(api, session_id, research_report)
+        await api.client.post(f"/api/sessions/{session_id}/advance")
+        await api.wait(session_id)
+        view = (await api.client.get(f"/api/sessions/{session_id}")).json()
+        assert view["status"] == "aborted"
+        assert "発言が空" in view["aborted"]
+    finally:
+        await api.client.aclose()
+        await lifespan.__aexit__(None, None, None)
+
+
+def test_openapi_schema() -> None:
+    schema = create_app().openapi()
+    operations = {op["operationId"] for path in schema["paths"].values() for op in path.values()}
+    assert {"createSession", "advanceSession", "runSession", "streamSession", "setEvidence"} <= (
+        operations
+    )
+    stream = schema["paths"]["/api/sessions/{session_id}/stream"]["get"]
+    assert "text/event-stream" in stream["responses"]["200"]["content"]
+    events = schema["paths"]["/api/sessions/{session_id}/events"]["get"]
+    items = events["responses"]["200"]["content"]["application/json"]["schema"]["items"]
+    assert items["discriminator"]["propertyName"] == "type"

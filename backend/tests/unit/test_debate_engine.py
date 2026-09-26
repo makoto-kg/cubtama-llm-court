@@ -11,7 +11,15 @@ from llm_court.domain import (
     Side,
     StatementMade,
 )
-from llm_court.engine.debate import DebateEngine, DebateError, DebateObserver, ResearchFn
+from llm_court.engine.debate import (
+    DebateEngine,
+    DebateError,
+    DebateObserver,
+    ResearchFn,
+    SessionNotFoundError,
+    SessionStateError,
+    next_step,
+)
 from llm_court.engine.record import render_markdown
 from llm_court.engine.recorder import BufferedRecorder
 from llm_court.engine.state import DebateState, InvalidEventError
@@ -268,3 +276,104 @@ async def test_markdown_and_summary(
     assert summary.llm_calls == 14
     assert summary.claims == 12
     assert summary.wall_time_s is not None
+
+
+# --- 1 ステップずつの進行と再開 ---
+
+
+async def test_step_by_step_and_resume(
+    prompts: PromptLoader, store: EventStore, research_report: ResearchReport
+) -> None:
+    fake = FakeChatBackend(responder=DebateResponder())
+    engine = make_engine(prompts, store, fake)
+    session_id = await engine.start("論題", 1)
+    assert next_step(engine.state, DEBATE_MODE) is None  # 証拠品がまだない
+    with pytest.raises(SessionStateError, match="証拠品"):
+        await engine.advance()
+
+    await engine.collect_evidence(research_report)
+    with pytest.raises(SessionStateError, match="すでに"):
+        await engine.collect_evidence(research_report)
+
+    step = await engine.advance()
+    assert isinstance(step, Turn)
+    assert (step.phase, step.side) == (DebatePhase.OPENING, Side.AFFIRMATIVE)
+    assert len(engine.state.statements) == 1
+
+    # 別のエンジン(再起動相当)でストアから再開する
+    resumed = make_engine(prompts, store, fake)
+    state = await resumed.resume(session_id)
+    assert state == engine.state
+    step = await resumed.advance()
+    assert isinstance(step, Turn) and step.side is Side.NEGATIVE
+
+    # 反論に入るときは PhaseStarted が 1 回だけ出る
+    await resumed.advance()
+    phases = [e for e in await store.load(session_id) if e.type == "phase_started"]
+    assert [(e.phase, e.round) for e in phases] == [
+        (DebatePhase.OPENING, 0),
+        (DebatePhase.REBUTTAL, 1),
+    ]
+
+    final = await resumed.run_to_end()
+    assert final.verdict is not None
+    assert next_step(final, DEBATE_MODE) is None
+    with pytest.raises(SessionStateError, match="手番"):
+        await resumed.advance()
+    assert DebateState.from_events(await store.load(session_id)) == final
+
+
+async def test_resume_unknown_session(prompts: PromptLoader, store: EventStore) -> None:
+    engine = make_engine(prompts, store, FakeChatBackend())
+    with pytest.raises(SessionNotFoundError):
+        await engine.resume("nope")
+
+
+async def test_state_error_does_not_abort(
+    prompts: PromptLoader, store: EventStore, research_report: ResearchReport
+) -> None:
+    engine = make_engine(prompts, store, FakeChatBackend(responder=DebateResponder()))
+    await engine.start("論題", 1)
+    with pytest.raises(SessionStateError):
+        await engine.advance()
+    assert engine.state.aborted is None
+
+
+async def test_recorder_isolated_per_task() -> None:
+    import asyncio
+
+    from llm_court.llm import LLMCallRecord
+
+    recorder = BufferedRecorder()
+
+    def record(role: str) -> None:
+        recorder.record(
+            LLMCallRecord(
+                started_at=datetime.now(UTC),
+                role=role,
+                model_key="m",
+                model="m",
+                provider="p",
+                kind="text",
+                total_ms=1,
+                success=True,
+            )
+        )
+
+    async def task(role: str) -> list[str]:
+        with recorder.isolated():
+            record(role)
+            await asyncio.sleep(0)
+            # 子タスクの記録も同じバッファに入る
+            await asyncio.gather(asyncio.to_thread(lambda: None), _child(record, role))
+            return [c.role for c in recorder.drain()]
+
+    a, b = await asyncio.gather(task("a"), task("b"))
+    assert a == ["a", "a"]
+    assert b == ["b", "b"]
+    record("shared")
+    assert [c.role for c in recorder.drain()] == ["shared"]
+
+
+async def _child(record: Callable[[str], None], role: str) -> None:
+    record(role)
