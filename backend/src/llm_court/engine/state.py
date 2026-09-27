@@ -174,4 +174,6 @@ class DebateState(BaseModel):
                 update["penalty_gauge"] = event.remaining
             case LLMCallRecorded():
                 update["llm_calls"] = [*self.llm_calls, event.call]
+            case _:
+                raise InvalidEventError(f"ディベートでは扱わないイベントです: {event.type}")
         return self.model_copy(update=update)

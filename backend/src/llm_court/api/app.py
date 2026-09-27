@@ -13,6 +13,7 @@ from llm_court.api.context import ApiContext
 from llm_court.api.hub import SessionHub
 from llm_court.api.routes import router
 from llm_court.api.tasks import TaskConflictError, TaskRunner
+from llm_court.api.trial_routes import router as trial_router
 from llm_court.config import Settings
 from llm_court.engine.debate import (
     InvalidChoiceError,
@@ -24,11 +25,12 @@ from llm_court.engine.store import EventStore
 from llm_court.llm import LLMClient, PromptLoader
 from llm_court.llm.backend import OpenAIChatBackend
 from llm_court.llm.client import BackendFactory
-from llm_court.modes import DEBATE_MODE
+from llm_court.modes import DEBATE_MODE, TRIAL_MODE
 from llm_court.research.cache import PageCache
 from llm_court.research.fetch import PageFetcher
 from llm_court.research.pipeline import ResearchPipeline
 from llm_court.research.search import SearXNGClient
+from llm_court.scenario.store import CaseNotFoundError, CaseStore
 
 
 def create_app(
@@ -70,6 +72,8 @@ def create_app(
             research=pipeline,
             hub=hub,
             tasks=tasks,
+            trial_mode=TRIAL_MODE,
+            cases=CaseStore(settings.scenario.case_dir),
         )
         try:
             yield
@@ -108,5 +112,10 @@ def create_app(
     async def _task_conflict(request: Request, exc: TaskConflictError) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
+    @app.exception_handler(CaseNotFoundError)
+    async def _case_not_found(request: Request, exc: CaseNotFoundError) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": f"事件 {exc} がありません"})
+
     app.include_router(router)
+    app.include_router(trial_router)
     return app

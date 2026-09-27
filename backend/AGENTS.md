@@ -33,12 +33,14 @@ uv run llm-court eval-report data/eval/<実行>  # 保存済みの評価結果�
 uv run llm-court case generate "<テーマ>" -e eval/evidence/four-day-week.json  # 裁判型の事件を生成・検証して data/cases/ に保存
 uv run llm-court case validate <case_id> # 事件を検証し直す(整合性チェック + solver)
 uv run llm-court case list               # 生成済みの事件の一覧
+uv run llm-court trial <case_id> --reveal  # 裁判型を CLI で遊ぶ(シナリオ検証用。q で中断、--resume で再開)
+uv run llm-court eval-trial <case_id...> -n 1  # 自動プレイヤーで証人の台本逸脱率を測り data/eval/ に出力
 uv run llm-court serve                   # API サーバー(http://127.0.0.1:8000/api、ドキュメントは /docs)
 uv run llm-court openapi -o openapi.json # OpenAPI スキーマを出力(フロントエンドの型生成用)
 uv run pre-commit install                # pre-commit フック(ルートの .pre-commit-config.yaml)を有効化
 ```
 
-CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(Phase 2)、`debate`(Phase 3)、`eval`(Phase 4)、`serve` / `openapi`(Phase 5)、`play`(Phase 6 の追加。ADR 0010)、`case generate` / `case validate`(Phase 8)
+CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(Phase 2)、`debate`(Phase 3)、`eval`(Phase 4)、`serve` / `openapi`(Phase 5)、`play`(Phase 6 の追加。ADR 0010)、`case generate` / `case validate`(Phase 8)、`trial` / `eval-trial`(Phase 9)
 
 ## ディレクトリの責務(`src/llm_court/`)
 
@@ -85,3 +87,5 @@ CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(P
 - 状態はリクエストのたびにイベントストアから再構築する。API 層で状態を保持しない
 - 手順違反は 409、存在しないセッションは 404
 - 人間 vs LLM: `POST /api/sessions` に `human_side` を付ける。人間の手番では `GET …/choices` で選択肢を取得し(強さは伏せてある)、`POST …/choices {option_id}` で選ぶ。次の人間の手番か判決まで自動で進む
+- 裁判型(ADR 0013): `GET /api/cases` → `POST /api/trials {case_id}` → `POST /api/trials/{id}/choices {option_id}`(証人の応答は SSE でストリーミング)→ 全矛盾を解いたら `POST …/answer {index}` → 閉廷後の `TrialView.explanation` と `POST …/objections`
+  - イベントログと SSE はディベートと共通(`/api/sessions/{id}/events`・`/stream`)。閉廷までは事件の非公開の情報・選択肢の強さ・LLM 呼び出しの入出力を伏せる

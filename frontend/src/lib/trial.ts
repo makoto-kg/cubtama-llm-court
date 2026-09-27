@@ -1,0 +1,85 @@
+import type { DebateEvent, Explanation, ObjectionTarget, TrialOption, TrialView } from "@/api/client";
+
+import { CUT_IN_TEXT } from "./cutin";
+
+/** ストリーミング中の証人の応答(SSE の witness / token から組み立てる)。 */
+export type WitnessStream = { witnessId: string; text: string };
+
+export function appendWitnessToken(
+  current: WitnessStream | null,
+  token: { witness_id: string; text: string },
+): WitnessStream {
+  if (current && current.witnessId === token.witness_id) {
+    return { ...current, text: current.text + token.text };
+  }
+  return { witnessId: token.witness_id, text: token.text };
+}
+
+/** 選択の直後に出すカットイン。つきつける = 反証、ゆさぶる = 確認。 */
+export function cutInForTrialChoice(option: TrialOption): string {
+  return option.kind === "present" ? CUT_IN_TEXT.contradiction : CUT_IN_TEXT.probe;
+}
+
+/** 証言が崩れた瞬間の、強い演出のカットイン。 */
+export const COLLAPSE_CUT_IN = "証言崩壊!";
+
+/** 永続イベントから出すカットイン(正解で証言が崩れたとき)。 */
+export function cutInForTrialEvent(event: DebateEvent): string | null {
+  if (event.type === "trial_choice_made") return cutInForTrialChoice(event.option);
+  if (event.type === "contradiction_solved") return COLLAPSE_CUT_IN;
+  return null;
+}
+
+export function isTrialFinished(view: TrialView | null): boolean {
+  return view?.status === "finished" || view?.status === "aborted";
+}
+
+export const RESULT_LABELS: Record<string, string> = {
+  solved: "事件解決",
+  wrong_answer: "問いの答えが違いました",
+  penalty: "ペナルティゲージが尽きました",
+};
+
+/** 現在の証言(公開の事件から)。 */
+export function currentTestimony(view: TrialView) {
+  return view.case.testimonies.find((t) => t.id === view.testimony_id) ?? null;
+}
+
+export function personName(view: TrialView, personId: string): string {
+  return view.case.people.find((p) => p.id === personId)?.name ?? personId;
+}
+
+/** 選択肢を行ごとにまとめる(証言の行の順)。 */
+export function optionsByLine(
+  lineIds: string[],
+  options: TrialOption[],
+): { lineId: string; options: TrialOption[] }[] {
+  return lineIds
+    .map((lineId) => ({ lineId, options: options.filter((o) => o.line_id === lineId) }))
+    .filter((g) => g.options.length > 0);
+}
+
+export type ObjectionTargetOption = { kind: ObjectionTarget; id: string; label: string };
+
+/** 「解説に異議あり」で指せる項目。罠の ID は「矛盾の ID/証拠品の ID」。 */
+export function objectionTargets(explanation: Explanation): ObjectionTargetOption[] {
+  const targets: ObjectionTargetOption[] = [];
+  for (const item of explanation.items) {
+    targets.push({
+      kind: "contradiction",
+      id: item.contradiction_id,
+      label: `矛盾: 「${item.testimony_line}」× ${item.evidence_name}`,
+    });
+    for (const trap of item.traps) {
+      targets.push({
+        kind: "trap",
+        id: `${item.contradiction_id}/${trap.evidence_id}`,
+        label: `罠: ${trap.evidence_name}(「${item.testimony_line}」)`,
+      });
+    }
+  }
+  for (const lp of explanation.learning_points) {
+    targets.push({ kind: "learning_point", id: lp.id, label: `知識: ${lp.knowledge}` });
+  }
+  return targets;
+}

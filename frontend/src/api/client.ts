@@ -28,6 +28,12 @@ export type Side = Schemas["Statement"]["side"];
 export type DebatePhase = Schemas["Statement"]["phase"];
 export type TaskView = Schemas["TaskView"];
 export type NextTurn = Schemas["NextTurn"];
+export type CaseSummary = Schemas["CaseSummary"];
+export type TrialView = Schemas["TrialView"];
+export type TrialOption = Schemas["TrialOption"];
+export type TrialExchange = Schemas["TrialExchange"];
+export type Explanation = Schemas["Explanation"];
+export type ObjectionTarget = Schemas["ObjectionRequest"]["target_kind"];
 
 export class ApiError extends Error {
   constructor(

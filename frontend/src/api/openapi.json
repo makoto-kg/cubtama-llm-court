@@ -37,6 +37,7 @@
           "sessions"
         ],
         "summary": "List Sessions",
+        "description": "ディベートのセッションの一覧(裁判のセッションは含めない)。",
         "operationId": "listSessions",
         "responses": {
           "200": {
@@ -680,7 +681,7 @@
           "logs"
         ],
         "summary": "List Events",
-        "description": "イベントログ(`after` より後の seq)。",
+        "description": "イベントログ(`after` より後の seq)。ディベート・裁判の両方で使う。",
         "operationId": "listEvents",
         "parameters": [
           {
@@ -750,6 +751,33 @@
                         "$ref": "#/components/schemas/PenaltyApplied"
                       },
                       {
+                        "$ref": "#/components/schemas/TrialStarted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/TestimonyStarted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/TrialChoicesPrepared"
+                      },
+                      {
+                        "$ref": "#/components/schemas/TrialChoiceMade"
+                      },
+                      {
+                        "$ref": "#/components/schemas/WitnessResponded"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ContradictionSolved"
+                      },
+                      {
+                        "$ref": "#/components/schemas/AnswerSubmitted"
+                      },
+                      {
+                        "$ref": "#/components/schemas/TrialFinished"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ExplanationObjected"
+                      },
+                      {
                         "$ref": "#/components/schemas/LLMCallRecorded"
                       }
                     ],
@@ -768,6 +796,15 @@
                         "choices_prepared": "#/components/schemas/ChoicesPrepared",
                         "choice_made": "#/components/schemas/ChoiceMade",
                         "penalty_applied": "#/components/schemas/PenaltyApplied",
+                        "trial_started": "#/components/schemas/TrialStarted",
+                        "testimony_started": "#/components/schemas/TestimonyStarted",
+                        "trial_choices_prepared": "#/components/schemas/TrialChoicesPrepared",
+                        "trial_choice_made": "#/components/schemas/TrialChoiceMade",
+                        "witness_responded": "#/components/schemas/WitnessResponded",
+                        "contradiction_solved": "#/components/schemas/ContradictionSolved",
+                        "answer_submitted": "#/components/schemas/AnswerSubmitted",
+                        "trial_finished": "#/components/schemas/TrialFinished",
+                        "explanation_objected": "#/components/schemas/ExplanationObjected",
                         "llm_call_recorded": "#/components/schemas/LLMCallRecorded"
                       }
                     }
@@ -857,7 +894,7 @@
         ],
         "responses": {
           "200": {
-            "description": "SSE。event は debate(永続イベント、id=seq)/ turn(発言開始)/ token(発言のチャンク)/ progress / task。判決・中断で終わる",
+            "description": "SSE。event は debate(永続イベント、id=seq)/ turn(発言開始)/ token(発言のチャンク)/ progress / task。裁判では turn の代わりに witness(証人の応答開始)を送る。判決・閉廷・中断で終わる",
             "content": {
               "text/event-stream": {}
             }
@@ -1021,10 +1058,1003 @@
           }
         }
       }
+    },
+    "/api/cases": {
+      "get": {
+        "tags": [
+          "trials"
+        ],
+        "summary": "List Cases",
+        "description": "遊べる事件の一覧(公開の情報だけ)。既定では solver の検証に合格した事件だけ。",
+        "operationId": "listCases",
+        "parameters": [
+          {
+            "name": "all",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "解けると判定されていない事件も含める",
+              "default": false,
+              "title": "All"
+            },
+            "description": "解けると判定されていない事件も含める"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CaseSummary"
+                  },
+                  "title": "Response Listcases"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trials": {
+      "post": {
+        "tags": [
+          "trials"
+        ],
+        "summary": "Create Trial",
+        "description": "事件を選んで開廷する。最初の証言の選択肢まで用意して返す。",
+        "operationId": "createTrial",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTrialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrialView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "裁判・事件がない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trials/{session_id}": {
+      "get": {
+        "tags": [
+          "trials"
+        ],
+        "summary": "Get Trial",
+        "operationId": "getTrial",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrialView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "裁判・事件がない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trials/{session_id}/advance": {
+      "post": {
+        "tags": [
+          "trials"
+        ],
+        "summary": "Advance Trial",
+        "description": "選択肢の用意待ちなら用意する(通常は選択のたびに自動で用意される)。",
+        "operationId": "advanceTrial",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskAccepted"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "裁判・事件がない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trials/{session_id}/choices": {
+      "post": {
+        "tags": [
+          "trials"
+        ],
+        "summary": "Choose Trial Option",
+        "description": "選択肢を選ぶ。証人の応答を SSE でストリーミングし、次の選択肢(または問い)まで進める。",
+        "operationId": "chooseTrialOption",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChooseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskAccepted"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "裁判・事件がない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "選択肢・項目がない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trials/{session_id}/answer": {
+      "post": {
+        "tags": [
+          "trials"
+        ],
+        "summary": "Answer Trial",
+        "description": "最後の問いに答えて閉廷する。閉廷後は解説を返す。",
+        "operationId": "answerTrial",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrialView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "裁判・事件がない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "選択肢・項目がない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trials/{session_id}/objections": {
+      "post": {
+        "tags": [
+          "trials"
+        ],
+        "summary": "Object To Explanation",
+        "description": "「解説に異議あり」。解説の項目の誤りを報告する(閉廷後のみ)。",
+        "operationId": "objectToExplanation",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObjectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrialView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "裁判・事件がない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "現在の状態ではその操作をできない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "選択肢・項目がない",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AnswerRequest": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Index",
+            "description": "最後の問いの選択肢の番号(0 始まり)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index"
+        ],
+        "title": "AnswerRequest"
+      },
+      "AnswerSubmitted": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "answer_submitted",
+            "title": "Type",
+            "default": "answer_submitted"
+          },
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "correct": {
+            "type": "boolean",
+            "title": "Correct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "correct"
+        ],
+        "title": "AnswerSubmitted"
+      },
+      "Case": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "theme": {
+            "type": "string",
+            "title": "Theme"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "overview": {
+            "type": "string",
+            "title": "Overview"
+          },
+          "question": {
+            "$ref": "#/components/schemas/CaseQuestion"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            },
+            "type": "array",
+            "title": "People"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/CaseEvidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "testimonies": {
+            "items": {
+              "$ref": "#/components/schemas/Testimony"
+            },
+            "type": "array",
+            "title": "Testimonies"
+          },
+          "learning_points": {
+            "items": {
+              "$ref": "#/components/schemas/LearningPoint"
+            },
+            "type": "array",
+            "title": "Learning Points"
+          },
+          "hidden_truth": {
+            "$ref": "#/components/schemas/HiddenTruth"
+          },
+          "witness_scripts": {
+            "items": {
+              "$ref": "#/components/schemas/WitnessScript"
+            },
+            "type": "array",
+            "title": "Witness Scripts"
+          },
+          "contradictions": {
+            "items": {
+              "$ref": "#/components/schemas/Contradiction"
+            },
+            "type": "array",
+            "title": "Contradictions"
+          },
+          "research": {
+            "$ref": "#/components/schemas/ResearchReport"
+          },
+          "generation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseGeneration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "validation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseValidation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "theme",
+          "title",
+          "created_at",
+          "overview",
+          "question",
+          "people",
+          "evidence",
+          "testimonies",
+          "learning_points",
+          "hidden_truth",
+          "witness_scripts",
+          "contradictions",
+          "research"
+        ],
+        "title": "Case"
+      },
+      "CaseEvidence": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "details": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "details"
+        ],
+        "title": "CaseEvidence"
+      },
+      "CaseGeneration": {
+        "properties": {
+          "models": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Models"
+          },
+          "prompt_versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Prompt Versions"
+          },
+          "regenerations": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Regenerations"
+          },
+          "llm_calls": {
+            "type": "integer",
+            "title": "Llm Calls"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          },
+          "llm_time_s": {
+            "type": "number",
+            "title": "Llm Time S"
+          },
+          "extra": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Extra",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "models",
+          "prompt_versions",
+          "regenerations",
+          "llm_calls",
+          "input_tokens",
+          "output_tokens",
+          "llm_time_s"
+        ],
+        "title": "CaseGeneration",
+        "description": "生成の記録(使ったモデル・プロンプト・計測・作り直しの回数)。"
+      },
+      "CasePublic": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "overview": {
+            "type": "string",
+            "title": "Overview"
+          },
+          "question": {
+            "$ref": "#/components/schemas/PublicQuestion"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            },
+            "type": "array",
+            "title": "People"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/CaseEvidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "testimonies": {
+            "items": {
+              "$ref": "#/components/schemas/PublicTestimony"
+            },
+            "type": "array",
+            "title": "Testimonies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "overview",
+          "question",
+          "people",
+          "evidence",
+          "testimonies"
+        ],
+        "title": "CasePublic",
+        "description": "プレイヤーと solver に渡す公開情報。"
+      },
+      "CaseQuestion": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 2,
+            "title": "Options"
+          },
+          "answer_index": {
+            "type": "integer",
+            "title": "Answer Index"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "options",
+          "answer_index"
+        ],
+        "title": "CaseQuestion"
+      },
+      "CaseSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "theme": {
+            "type": "string",
+            "title": "Theme"
+          },
+          "overview": {
+            "type": "string",
+            "title": "Overview"
+          },
+          "witnesses": {
+            "type": "integer",
+            "title": "Witnesses"
+          },
+          "testimonies": {
+            "type": "integer",
+            "title": "Testimonies"
+          },
+          "contradictions": {
+            "type": "integer",
+            "title": "Contradictions"
+          },
+          "solvable": {
+            "type": "boolean",
+            "title": "Solvable"
+          },
+          "solve_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solve Rate"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "theme",
+          "overview",
+          "witnesses",
+          "testimonies",
+          "contradictions",
+          "solvable",
+          "solve_rate",
+          "created_at"
+        ],
+        "title": "CaseSummary",
+        "description": "事件の一覧の 1 件(公開の情報と検証の結果だけ)。"
+      },
+      "CaseValidation": {
+        "properties": {
+          "validated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Validated At"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/CheckIssue"
+            },
+            "type": "array",
+            "title": "Issues"
+          },
+          "solver_runs": {
+            "items": {
+              "$ref": "#/components/schemas/SolverRun"
+            },
+            "type": "array",
+            "title": "Solver Runs"
+          },
+          "solved": {
+            "type": "boolean",
+            "title": "Solved"
+          },
+          "solve_rate": {
+            "type": "number",
+            "title": "Solve Rate",
+            "default": 0.0
+          },
+          "detect_rate": {
+            "type": "number",
+            "title": "Detect Rate",
+            "default": 0.0
+          },
+          "answer_rate": {
+            "type": "number",
+            "title": "Answer Rate",
+            "default": 0.0
+          },
+          "attempted_runs": {
+            "type": "integer",
+            "title": "Attempted Runs",
+            "default": 0
+          },
+          "min_solve_rate": {
+            "type": "number",
+            "title": "Min Solve Rate",
+            "default": 0.0
+          },
+          "unique": {
+            "type": "boolean",
+            "title": "Unique"
+          },
+          "min_steps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "validated_at",
+          "issues",
+          "solver_runs",
+          "solved",
+          "unique",
+          "min_steps"
+        ],
+        "title": "CaseValidation"
+      },
+      "CheckIssue": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "step": {
+            "type": "string",
+            "title": "Step"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "step"
+        ],
+        "title": "CheckIssue"
+      },
       "ChoiceMade": {
         "properties": {
           "session_id": {
@@ -1548,6 +2578,29 @@
         ],
         "title": "ClaimsExtracted"
       },
+      "CollapseCondition": {
+        "properties": {
+          "lie_id": {
+            "type": "string",
+            "title": "Lie Id"
+          },
+          "evidence_id": {
+            "type": "string",
+            "title": "Evidence Id"
+          },
+          "reaction": {
+            "type": "string",
+            "title": "Reaction"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lie_id",
+          "evidence_id",
+          "reaction"
+        ],
+        "title": "CollapseCondition"
+      },
       "ConfigView": {
         "properties": {
           "roles": {
@@ -1564,6 +2617,56 @@
         ],
         "title": "ConfigView",
         "description": "役割ごとのモデル割り当て(設定画面用。api_key は含めない)。"
+      },
+      "Contradiction": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "testimony_line_id": {
+            "type": "string",
+            "title": "Testimony Line Id"
+          },
+          "evidence_id": {
+            "type": "string",
+            "title": "Evidence Id"
+          },
+          "lie_id": {
+            "type": "string",
+            "title": "Lie Id"
+          },
+          "learning_point_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Learning Point Ids"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "traps": {
+            "items": {
+              "$ref": "#/components/schemas/Trap"
+            },
+            "type": "array",
+            "title": "Traps",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "testimony_line_id",
+          "evidence_id",
+          "lie_id",
+          "learning_point_ids",
+          "explanation"
+        ],
+        "title": "Contradiction"
       },
       "ContradictionCandidate": {
         "properties": {
@@ -1642,6 +2745,73 @@
         "title": "ContradictionCandidate",
         "description": "矛盾候補。`evidence_id` と `other_claim_id` はどちらか(または両方なし)。"
       },
+      "ContradictionSolved": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "contradiction_solved",
+            "title": "Type",
+            "default": "contradiction_solved"
+          },
+          "contradiction_id": {
+            "type": "string",
+            "title": "Contradiction Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contradiction_id"
+        ],
+        "title": "ContradictionSolved"
+      },
       "CreateSessionRequest": {
         "properties": {
           "topic": {
@@ -1676,6 +2846,21 @@
           "topic"
         ],
         "title": "CreateSessionRequest"
+      },
+      "CreateTrialRequest": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Case Id",
+            "description": "遊ぶ事件の ID"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id"
+        ],
+        "title": "CreateTrialRequest"
       },
       "DebatePhase": {
         "type": "string",
@@ -1762,6 +2947,46 @@
           "wall_time_s"
         ],
         "title": "DebateSummary"
+      },
+      "DeviationCheck": {
+        "properties": {
+          "confessed": {
+            "type": "boolean",
+            "title": "Confessed"
+          },
+          "leaked_fact_indices": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Leaked Fact Indices"
+          },
+          "deviations": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "premature_confession",
+                "failed_collapse",
+                "leak"
+              ]
+            },
+            "type": "array",
+            "title": "Deviations"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "confessed",
+          "leaked_fact_indices",
+          "deviations",
+          "reason"
+        ],
+        "title": "DeviationCheck",
+        "description": "証人の応答が台本から逸脱していないかの判定。"
       },
       "ErrorResponse": {
         "properties": {
@@ -1925,6 +3150,232 @@
         "title": "EvidenceSample",
         "description": "同梱の捜査結果(ブラウザから証拠品として選べる)。"
       },
+      "Explanation": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "truth": {
+            "type": "string",
+            "title": "Truth"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExplanationItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "learning_points": {
+            "items": {
+              "$ref": "#/components/schemas/LearningPoint"
+            },
+            "type": "array",
+            "title": "Learning Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "truth",
+          "question",
+          "answer",
+          "items",
+          "learning_points"
+        ],
+        "title": "Explanation",
+        "description": "閉廷後の解説(事件のデータだけから組み立てる。LLM で書かない)。"
+      },
+      "ExplanationItem": {
+        "properties": {
+          "contradiction_id": {
+            "type": "string",
+            "title": "Contradiction Id"
+          },
+          "witness_name": {
+            "type": "string",
+            "title": "Witness Name"
+          },
+          "testimony_line_id": {
+            "type": "string",
+            "title": "Testimony Line Id"
+          },
+          "testimony_line": {
+            "type": "string",
+            "title": "Testimony Line"
+          },
+          "evidence_id": {
+            "type": "string",
+            "title": "Evidence Id"
+          },
+          "evidence_name": {
+            "type": "string",
+            "title": "Evidence Name"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "learning_point_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Learning Point Ids"
+          },
+          "traps": {
+            "items": {
+              "$ref": "#/components/schemas/ExplanationTrap"
+            },
+            "type": "array",
+            "title": "Traps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contradiction_id",
+          "witness_name",
+          "testimony_line_id",
+          "testimony_line",
+          "evidence_id",
+          "evidence_name",
+          "explanation",
+          "learning_point_ids",
+          "traps"
+        ],
+        "title": "ExplanationItem",
+        "description": "1 つの矛盾の解説。"
+      },
+      "ExplanationObjected": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "explanation_objected",
+            "title": "Type",
+            "default": "explanation_objected"
+          },
+          "target_kind": {
+            "type": "string",
+            "enum": [
+              "learning_point",
+              "contradiction",
+              "trap"
+            ],
+            "title": "Target Kind"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "comment": {
+            "type": "string",
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_kind",
+          "target_id",
+          "comment"
+        ],
+        "title": "ExplanationObjected",
+        "description": "「解説に異議あり」。プレイヤーが解説の誤りを報告する。"
+      },
+      "ExplanationTrap": {
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "title": "Evidence Id"
+          },
+          "evidence_name": {
+            "type": "string",
+            "title": "Evidence Name"
+          },
+          "reasoning": {
+            "type": "string",
+            "title": "Reasoning"
+          },
+          "why_tempting": {
+            "type": "string",
+            "title": "Why Tempting"
+          },
+          "learning_point_id": {
+            "type": "string",
+            "title": "Learning Point Id"
+          },
+          "misconception": {
+            "type": "string",
+            "title": "Misconception"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "evidence_name",
+          "reasoning",
+          "why_tempting",
+          "learning_point_id",
+          "misconception"
+        ],
+        "title": "ExplanationTrap"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1937,6 +3388,35 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HiddenTruth": {
+        "properties": {
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineEvent"
+            },
+            "type": "array",
+            "title": "Timeline"
+          },
+          "lies": {
+            "items": {
+              "$ref": "#/components/schemas/Lie"
+            },
+            "type": "array",
+            "title": "Lies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary",
+          "timeline",
+          "lies"
+        ],
+        "title": "HiddenTruth"
       },
       "JudgeScore": {
         "properties": {
@@ -2349,6 +3829,125 @@
         ],
         "title": "LLMCallRecorded"
       },
+      "LearningPoint": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "knowledge": {
+            "type": "string",
+            "title": "Knowledge"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/LearningSource"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Sources"
+          },
+          "misconception": {
+            "type": "string",
+            "title": "Misconception"
+          },
+          "outdated": {
+            "type": "boolean",
+            "title": "Outdated",
+            "default": false
+          },
+          "outdated_belief": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outdated Belief"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "knowledge",
+          "explanation",
+          "sources",
+          "misconception"
+        ],
+        "title": "LearningPoint"
+      },
+      "LearningSource": {
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "title": "Evidence Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "quote": {
+            "type": "string",
+            "title": "Quote"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "title",
+          "url",
+          "quote"
+        ],
+        "title": "LearningSource",
+        "description": "学習ポイントの出典(捜査結果の証拠品と、その検証済みの引用)。"
+      },
+      "Lie": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "witness_id": {
+            "type": "string",
+            "title": "Witness Id"
+          },
+          "false_claim": {
+            "type": "string",
+            "title": "False Claim"
+          },
+          "truth_event_id": {
+            "type": "string",
+            "title": "Truth Event Id"
+          },
+          "learning_point_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Learning Point Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "witness_id",
+          "false_claim",
+          "truth_event_id",
+          "learning_point_ids"
+        ],
+        "title": "Lie"
+      },
       "NextTurn": {
         "properties": {
           "kind": {
@@ -2390,6 +3989,38 @@
         ],
         "title": "NextTurn",
         "description": "次に進む手番。"
+      },
+      "ObjectionRequest": {
+        "properties": {
+          "target_kind": {
+            "type": "string",
+            "enum": [
+              "learning_point",
+              "contradiction",
+              "trap"
+            ],
+            "title": "Target Kind"
+          },
+          "target_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Target Id",
+            "description": "学習ポイント・矛盾の ID、罠は「矛盾の ID/証拠品の ID」"
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_kind",
+          "target_id",
+          "comment"
+        ],
+        "title": "ObjectionRequest"
       },
       "PenaltyApplied": {
         "properties": {
@@ -2468,6 +4099,34 @@
         ],
         "title": "PenaltyApplied"
       },
+      "Person": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "role",
+          "description"
+        ],
+        "title": "Person"
+      },
       "PhaseStarted": {
         "properties": {
           "session_id": {
@@ -2538,6 +4197,76 @@
           "phase"
         ],
         "title": "PhaseStarted"
+      },
+      "PublicQuestion": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "options"
+        ],
+        "title": "PublicQuestion"
+      },
+      "PublicTestimony": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "witness_id": {
+            "type": "string",
+            "title": "Witness Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PublicTestimonyLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "witness_id",
+          "title",
+          "lines"
+        ],
+        "title": "PublicTestimony"
+      },
+      "PublicTestimonyLine": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "PublicTestimonyLine"
       },
       "ResearchReport": {
         "properties": {
@@ -3062,6 +4791,89 @@
         "title": "SkippedSource",
         "description": "証拠品にしなかった情報源と理由。"
       },
+      "SolverAccusation": {
+        "properties": {
+          "testimony_line_id": {
+            "type": "string",
+            "title": "Testimony Line Id"
+          },
+          "evidence_id": {
+            "type": "string",
+            "title": "Evidence Id"
+          },
+          "reasoning": {
+            "type": "string",
+            "title": "Reasoning"
+          }
+        },
+        "type": "object",
+        "required": [
+          "testimony_line_id",
+          "evidence_id",
+          "reasoning"
+        ],
+        "title": "SolverAccusation"
+      },
+      "SolverRun": {
+        "properties": {
+          "accusations": {
+            "items": {
+              "$ref": "#/components/schemas/SolverAccusation"
+            },
+            "type": "array",
+            "title": "Accusations"
+          },
+          "answer_index": {
+            "type": "integer",
+            "title": "Answer Index"
+          },
+          "found": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Found"
+          },
+          "extra": {
+            "type": "integer",
+            "title": "Extra"
+          },
+          "near_misses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Near Misses",
+            "default": []
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          },
+          "answer_correct": {
+            "type": "boolean",
+            "title": "Answer Correct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accusations",
+          "answer_index",
+          "found",
+          "extra",
+          "steps",
+          "answer_correct"
+        ],
+        "title": "SolverRun",
+        "description": "solver の 1 回の解答と採点。"
+      },
       "Statement": {
         "properties": {
           "id": {
@@ -3228,6 +5040,810 @@
           "started_at"
         ],
         "title": "TaskView"
+      },
+      "Testimony": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "witness_id": {
+            "type": "string",
+            "title": "Witness Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/TestimonyLine"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "witness_id",
+          "title",
+          "lines"
+        ],
+        "title": "Testimony"
+      },
+      "TestimonyLine": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "lie_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lie Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "TestimonyLine"
+      },
+      "TestimonyStarted": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "testimony_started",
+            "title": "Type",
+            "default": "testimony_started"
+          },
+          "testimony_id": {
+            "type": "string",
+            "title": "Testimony Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "testimony_id"
+        ],
+        "title": "TestimonyStarted"
+      },
+      "TimelineEvent": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "order": {
+            "type": "integer",
+            "title": "Order"
+          },
+          "time": {
+            "type": "string",
+            "title": "Time"
+          },
+          "location": {
+            "type": "string",
+            "title": "Location"
+          },
+          "person_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Person Ids"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "order",
+          "time",
+          "location",
+          "person_ids",
+          "description"
+        ],
+        "title": "TimelineEvent"
+      },
+      "Trap": {
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "title": "Evidence Id"
+          },
+          "reasoning": {
+            "type": "string",
+            "title": "Reasoning"
+          },
+          "learning_point_id": {
+            "type": "string",
+            "title": "Learning Point Id"
+          },
+          "why_tempting": {
+            "type": "string",
+            "title": "Why Tempting"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "reasoning",
+          "learning_point_id",
+          "why_tempting"
+        ],
+        "title": "Trap",
+        "description": "罠の選択肢(誤った証拠品と、それを選びたくなる誤解)。"
+      },
+      "TrialChoiceMade": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "trial_choice_made",
+            "title": "Type",
+            "default": "trial_choice_made"
+          },
+          "option": {
+            "$ref": "#/components/schemas/TrialOption"
+          }
+        },
+        "type": "object",
+        "required": [
+          "option"
+        ],
+        "title": "TrialChoiceMade"
+      },
+      "TrialChoicesPrepared": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "trial_choices_prepared",
+            "title": "Type",
+            "default": "trial_choices_prepared"
+          },
+          "testimony_id": {
+            "type": "string",
+            "title": "Testimony Id"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/TrialOption"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "testimony_id",
+          "options"
+        ],
+        "title": "TrialChoicesPrepared"
+      },
+      "TrialExchange": {
+        "properties": {
+          "option": {
+            "$ref": "#/components/schemas/TrialOption"
+          },
+          "witness_id": {
+            "type": "string",
+            "title": "Witness Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "solved": {
+            "type": "boolean",
+            "title": "Solved"
+          },
+          "penalty": {
+            "type": "integer",
+            "title": "Penalty"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviationCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "option",
+          "witness_id",
+          "text",
+          "solved",
+          "penalty",
+          "check"
+        ],
+        "title": "TrialExchange",
+        "description": "尋問の 1 往復(選んだ選択肢と証人の応答)。"
+      },
+      "TrialFinished": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "trial_finished",
+            "title": "Type",
+            "default": "trial_finished"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "solved",
+              "wrong_answer",
+              "penalty"
+            ],
+            "title": "Result"
+          }
+        },
+        "type": "object",
+        "required": [
+          "result"
+        ],
+        "title": "TrialFinished"
+      },
+      "TrialOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "present",
+              "probe"
+            ],
+            "title": "Kind"
+          },
+          "line_id": {
+            "type": "string",
+            "title": "Line Id"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "strength": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "strong",
+                  "weak",
+                  "trap"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strength"
+          },
+          "contradiction_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contradiction Id"
+          },
+          "trap_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trap Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "line_id",
+          "label"
+        ],
+        "title": "TrialOption",
+        "description": "尋問の選択肢。`strength` などは選ぶまでプレイヤーに見せない。"
+      },
+      "TrialStarted": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "trial_started",
+            "title": "Type",
+            "default": "trial_started"
+          },
+          "case": {
+            "$ref": "#/components/schemas/Case"
+          },
+          "models": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Models"
+          },
+          "penalty_gauge": {
+            "type": "integer",
+            "title": "Penalty Gauge"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case",
+          "models",
+          "penalty_gauge"
+        ],
+        "title": "TrialStarted",
+        "description": "裁判の開廷。事件の全体を含める(状態をログだけで再構築できるように)。"
+      },
+      "TrialView": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "case": {
+            "$ref": "#/components/schemas/CasePublic"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "answering",
+              "finished",
+              "aborted"
+            ],
+            "title": "Status"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "examining",
+              "choosing",
+              "responding",
+              "answering",
+              "finished"
+            ],
+            "title": "Stage"
+          },
+          "running_task": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "models": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Models"
+          },
+          "testimony_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Testimony Id"
+          },
+          "pending_options": {
+            "items": {
+              "$ref": "#/components/schemas/TrialOption"
+            },
+            "type": "array",
+            "title": "Pending Options"
+          },
+          "exchanges": {
+            "items": {
+              "$ref": "#/components/schemas/TrialExchange"
+            },
+            "type": "array",
+            "title": "Exchanges"
+          },
+          "solved_line_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Solved Line Ids"
+          },
+          "solved_count": {
+            "type": "integer",
+            "title": "Solved Count"
+          },
+          "contradiction_count": {
+            "type": "integer",
+            "title": "Contradiction Count"
+          },
+          "penalty_gauge": {
+            "type": "integer",
+            "title": "Penalty Gauge"
+          },
+          "penalty_gauge_max": {
+            "type": "integer",
+            "title": "Penalty Gauge Max"
+          },
+          "answer_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Index"
+          },
+          "answer_correct": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Correct"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "solved",
+                  "wrong_answer",
+                  "penalty"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "aborted": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aborted"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Explanation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "objections": {
+            "items": {
+              "$ref": "#/components/schemas/ExplanationObjected"
+            },
+            "type": "array",
+            "title": "Objections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "case",
+          "status",
+          "stage",
+          "running_task",
+          "models",
+          "testimony_id",
+          "pending_options",
+          "exchanges",
+          "solved_line_ids",
+          "solved_count",
+          "contradiction_count",
+          "penalty_gauge",
+          "penalty_gauge_max",
+          "answer_index",
+          "answer_correct",
+          "result",
+          "aborted",
+          "explanation",
+          "objections"
+        ],
+        "title": "TrialView"
       },
       "TurnMetrics": {
         "properties": {
@@ -3462,6 +6078,151 @@
           "verdict"
         ],
         "title": "VerdictDelivered"
+      },
+      "WitnessResponded": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": ""
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "witness_responded",
+            "title": "Type",
+            "default": "witness_responded"
+          },
+          "option_id": {
+            "type": "string",
+            "title": "Option Id"
+          },
+          "witness_id": {
+            "type": "string",
+            "title": "Witness Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "should_collapse": {
+            "type": "boolean",
+            "title": "Should Collapse"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviationCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "option_id",
+          "witness_id",
+          "text",
+          "should_collapse"
+        ],
+        "title": "WitnessResponded"
+      },
+      "WitnessScript": {
+        "properties": {
+          "witness_id": {
+            "type": "string",
+            "title": "Witness Id"
+          },
+          "persona": {
+            "type": "string",
+            "title": "Persona"
+          },
+          "hidden_facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hidden Facts"
+          },
+          "lie_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lie Ids"
+          },
+          "collapse_conditions": {
+            "items": {
+              "$ref": "#/components/schemas/CollapseCondition"
+            },
+            "type": "array",
+            "title": "Collapse Conditions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "witness_id",
+          "persona",
+          "hidden_facts",
+          "lie_ids",
+          "collapse_conditions"
+        ],
+        "title": "WitnessScript"
       }
     }
   }

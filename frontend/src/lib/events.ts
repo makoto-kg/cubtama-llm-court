@@ -13,7 +13,11 @@ export function lastSeq(events: DebateEvent[]): number {
 }
 
 export function isTerminal(event: DebateEvent): boolean {
-  return event.type === "verdict_delivered" || event.type === "session_aborted";
+  return (
+    event.type === "verdict_delivered" ||
+    event.type === "session_aborted" ||
+    event.type === "trial_finished"
+  );
 }
 
 export function llmCalls(events: DebateEvent[]): LLMCallInfo[] {

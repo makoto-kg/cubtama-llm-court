@@ -27,7 +27,7 @@ from llm_court.api.schemas import (
 from llm_court.api.sse import session_stream
 from llm_court.api.tasks import TaskKind
 from llm_court.config import Role
-from llm_court.domain import Event, ResearchReport
+from llm_court.domain import Event, ResearchReport, SessionStarted
 from llm_court.engine.debate import (
     DebateEngine,
     InvalidChoiceError,
@@ -60,9 +60,15 @@ Ctx = Annotated[ApiContext, Depends(get_ctx)]
 
 async def _load(ctx: ApiContext, session_id: str) -> DebateState:
     events = await ctx.store.load(session_id)
-    if not events:
-        raise SessionNotFoundError(session_id)
+    if not events or not isinstance(events[0], SessionStarted):
+        raise SessionNotFoundError(session_id)  # 裁判のセッションは /api/trials で扱う
     return DebateState.from_events(events)
+
+
+async def _ensure_exists(ctx: ApiContext, session_id: str) -> None:
+    """ディベート・裁判のどちらでもよい。"""
+    if not await ctx.store.load(session_id):
+        raise SessionNotFoundError(session_id)
 
 
 def _view(ctx: ApiContext, state: DebateState) -> SessionView:
@@ -130,9 +136,12 @@ async def create_session(body: CreateSessionRequest, ctx: Ctx) -> SessionView:
 
 @router.get("/sessions", operation_id="listSessions", tags=["sessions"])
 async def list_sessions(ctx: Ctx) -> list[SessionListItem]:
+    """ディベートのセッションの一覧(裁判のセッションは含めない)。"""
     items: list[SessionListItem] = []
     for session_id in await ctx.store.list_sessions():
         events = await ctx.store.load(session_id)
+        if not events or not isinstance(events[0], SessionStarted):
+            continue
         state = DebateState.from_events(events)
         assert state.topic is not None
         items.append(
@@ -330,7 +339,7 @@ async def choose_option(session_id: str, body: ChooseRequest, ctx: Ctx) -> TaskA
 async def list_events(
     session_id: str, ctx: Ctx, after: Annotated[int, Query(ge=0)] = 0
 ) -> list[Event]:
-    """イベントログ(`after` より後の seq)。"""
+    """イベントログ(`after` より後の seq)。ディベート・裁判の両方で使う。"""
     events = await ctx.store.load(session_id)
     if not events:
         raise SessionNotFoundError(session_id)
@@ -347,7 +356,8 @@ async def list_events(
             "content": {"text/event-stream": {}},
             "description": (
                 "SSE。event は debate(永続イベント、id=seq)/ turn(発言開始)/ "
-                "token(発言のチャンク)/ progress / task。判決・中断で終わる"
+                "token(発言のチャンク)/ progress / task。裁判では turn の代わりに "
+                "witness(証人の応答開始)を送る。判決・閉廷・中断で終わる"
             ),
         },
         **_ERRORS,
@@ -359,7 +369,7 @@ async def stream_session(
     after: Annotated[int, Query(ge=0)] = 0,
     last_event_id: Annotated[str | None, Header()] = None,
 ) -> StreamingResponse:
-    await _load(ctx, session_id)
+    await _ensure_exists(ctx, session_id)
     if last_event_id is not None and last_event_id.isdigit():
         after = max(after, int(last_event_id))
     return StreamingResponse(
@@ -396,7 +406,5 @@ async def get_record(session_id: str, ctx: Ctx) -> PlainTextResponse:
 )
 async def get_summary(session_id: str, ctx: Ctx) -> DebateSummary:
     """計測サマリ(ターンごとの待ち時間、トークン、構造化出力の失敗、出典の問題)。"""
-    events = await ctx.store.load(session_id)
-    if not events:
-        raise SessionNotFoundError(session_id)
-    return summarize(events)
+    await _load(ctx, session_id)
+    return summarize(await ctx.store.load(session_id))

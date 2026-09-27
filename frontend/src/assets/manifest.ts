@@ -5,6 +5,7 @@ export const ASSETS = {
   judge: "/assets/judge.svg",
   affirmative: "/assets/affirmative.svg",
   negative: "/assets/negative.svg",
+  witness: "/assets/witness.svg",
 } as const;
 
 export const SPEAKER_NAMES = {

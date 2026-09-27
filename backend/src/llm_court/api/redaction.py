@@ -10,7 +10,20 @@
 from collections.abc import Sequence
 
 from llm_court.config import Role
-from llm_court.domain import ChoiceMade, ChoicesPrepared, Event, LLMCallRecorded
+from llm_court.domain import (
+    Case,
+    CaseQuestion,
+    ChoiceMade,
+    ChoicesPrepared,
+    Event,
+    HiddenTruth,
+    LLMCallRecorded,
+    SessionAborted,
+    Testimony,
+    TrialChoicesPrepared,
+    TrialFinished,
+    TrialStarted,
+)
 
 
 def redact_choices(event: ChoicesPrepared) -> ChoicesPrepared:
@@ -38,7 +51,12 @@ def redact_live(event: Event) -> Event:
 
 
 def redact_events(events: Sequence[Event]) -> list[Event]:
-    """未選択の選択肢と、それを作った分析官の呼び出しの出力だけを伏せる。"""
+    """未選択の選択肢と、それを作った分析官の呼び出しの出力だけを伏せる。
+
+    裁判のセッションは `redact_trial_events` の規則で伏せる。
+    """
+    if events and isinstance(events[0], TrialStarted):
+        return redact_trial_events(events)
     pending = next(
         (
             i
@@ -62,3 +80,62 @@ def redact_events(events: Sequence[Event]) -> list[Event]:
             event = redact_call(event)
         result.append(event)
     return result
+
+
+# --- 裁判型 ---
+#
+# 閉廷までは、事件の非公開の情報(真相・台本・矛盾・正解・学習ポイント)と、それを含む
+# LLM 呼び出しの入出力、並べた選択肢の強さを伏せる。過去に並べた選択肢も伏せるのは、
+# 選ばれなかった正解の組が、次の尋問で再び並ぶため。閉廷後(中断を含む)はすべて公開する。
+
+
+def redact_case(case: Case) -> Case:
+    """公開の情報だけを残した事件(型を保つため `Case` のまま、非公開の欄を空にする)。"""
+    return case.model_copy(
+        update={
+            "learning_points": [],
+            "hidden_truth": HiddenTruth(summary="", timeline=[], lies=[]),
+            "witness_scripts": [],
+            "contradictions": [],
+            "question": CaseQuestion.model_construct(
+                text=case.question.text, options=case.question.options, answer_index=-1
+            ),
+            "testimonies": [
+                Testimony(
+                    id=t.id,
+                    witness_id=t.witness_id,
+                    title=t.title,
+                    lines=[line.model_copy(update={"lie_id": None}) for line in t.lines],
+                )
+                for t in case.testimonies
+            ],
+            "generation": None,
+            "validation": None,
+        }
+    )
+
+
+def redact_trial_call(event: LLMCallRecorded) -> LLMCallRecorded:
+    call = event.call.model_copy(
+        update={"messages": None, "response_text": None, "reasoning_text": None, "parsed": None}
+    )
+    return event.model_copy(update={"call": call})
+
+
+def redact_trial_event(event: Event) -> Event:
+    """閉廷前の裁判のイベントを伏せる(SSE で発生直後に送るときもこれを使う)。"""
+    match event:
+        case TrialStarted():
+            return event.model_copy(update={"case": redact_case(event.case)})
+        case TrialChoicesPrepared():
+            return event.model_copy(update={"options": [o.redacted() for o in event.options]})
+        case LLMCallRecorded():
+            return redact_trial_call(event)
+        case _:
+            return event
+
+
+def redact_trial_events(events: Sequence[Event]) -> list[Event]:
+    if any(isinstance(e, TrialFinished | SessionAborted) for e in events):
+        return list(events)
+    return [redact_trial_event(e) for e in events]

@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator
 
 from llm_court.api.hub import SessionHub, StreamMessage
 from llm_court.api.redaction import redact_events
-from llm_court.domain import Event, SessionAborted, VerdictDelivered
+from llm_court.domain import Event, SessionAborted, TrialFinished, VerdictDelivered
 from llm_court.engine.store import EventStore
 
 
@@ -24,7 +24,7 @@ def debate_message(event: Event) -> StreamMessage:
 
 
 def is_terminal(event: Event) -> bool:
-    return isinstance(event, VerdictDelivered | SessionAborted)
+    return isinstance(event, VerdictDelivered | SessionAborted | TrialFinished)
 
 
 async def session_stream(
@@ -35,7 +35,7 @@ async def session_stream(
     hub: SessionHub,
     keepalive_s: float,
 ) -> AsyncGenerator[str]:
-    """`after` より後の履歴を送り、続けて新着を送る。判決・中断を送ったら終わる。
+    """`after` より後の履歴を送り、続けて新着を送る。判決・閉廷・中断を送ったら終わる。
 
     購読を先に始めてから履歴を読むので、その間に追記されたイベントも取りこぼさない
     (seq で重複を除く)。
@@ -66,5 +66,6 @@ async def session_stream(
             if message.event == "debate" and message.data.get("type") in (
                 "verdict_delivered",
                 "session_aborted",
+                "trial_finished",
             ):
                 return

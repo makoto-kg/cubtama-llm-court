@@ -8,6 +8,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
+from llm_court.domain.case import Case
 from llm_court.domain.choices import ChoiceOption
 from llm_court.domain.debate import (
     CitationIssue,
@@ -19,6 +20,7 @@ from llm_court.domain.debate import (
     Verdict,
 )
 from llm_court.domain.evidence import ResearchReport
+from llm_court.domain.trial import DeviationCheck, TrialOption, TrialResult
 
 
 class LLMCallInfo(BaseModel):
@@ -155,6 +157,69 @@ class PenaltyApplied(EventBase):
     reason: str
 
 
+# --- 裁判型 ---
+
+
+class TrialStarted(EventBase):
+    """裁判の開廷。事件の全体を含める(状態をログだけで再構築できるように)。"""
+
+    type: Literal["trial_started"] = "trial_started"
+    case: Case
+    models: dict[str, str]
+    penalty_gauge: int
+
+
+class TestimonyStarted(EventBase):
+    type: Literal["testimony_started"] = "testimony_started"
+    testimony_id: str
+
+
+class TrialChoicesPrepared(EventBase):
+    type: Literal["trial_choices_prepared"] = "trial_choices_prepared"
+    testimony_id: str
+    options: list[TrialOption]
+
+
+class TrialChoiceMade(EventBase):
+    type: Literal["trial_choice_made"] = "trial_choice_made"
+    option: TrialOption
+
+
+class WitnessResponded(EventBase):
+    type: Literal["witness_responded"] = "witness_responded"
+    option_id: str
+    witness_id: str
+    text: str
+    should_collapse: bool
+    check: DeviationCheck | None = None
+    call_id: str | None = None
+
+
+class ContradictionSolved(EventBase):
+    type: Literal["contradiction_solved"] = "contradiction_solved"
+    contradiction_id: str
+
+
+class AnswerSubmitted(EventBase):
+    type: Literal["answer_submitted"] = "answer_submitted"
+    index: int
+    correct: bool
+
+
+class TrialFinished(EventBase):
+    type: Literal["trial_finished"] = "trial_finished"
+    result: TrialResult
+
+
+class ExplanationObjected(EventBase):
+    """「解説に異議あり」。プレイヤーが解説の誤りを報告する。"""
+
+    type: Literal["explanation_objected"] = "explanation_objected"
+    target_kind: Literal["learning_point", "contradiction", "trap"]
+    target_id: str
+    comment: str
+
+
 class LLMCallRecorded(EventBase):
     type: Literal["llm_call_recorded"] = "llm_call_recorded"
     call: LLMCallInfo
@@ -173,6 +238,15 @@ Event = Annotated[
     | ChoicesPrepared
     | ChoiceMade
     | PenaltyApplied
+    | TrialStarted
+    | TestimonyStarted
+    | TrialChoicesPrepared
+    | TrialChoiceMade
+    | WitnessResponded
+    | ContradictionSolved
+    | AnswerSubmitted
+    | TrialFinished
+    | ExplanationObjected
     | LLMCallRecorded,
     Field(discriminator="type"),
 ]

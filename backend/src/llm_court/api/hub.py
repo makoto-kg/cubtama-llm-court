@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
-StreamEventType = Literal["debate", "turn", "token", "progress", "task"]
+StreamEventType = Literal["debate", "turn", "witness", "token", "progress", "task"]
 
 
 class StreamMessage(BaseModel):

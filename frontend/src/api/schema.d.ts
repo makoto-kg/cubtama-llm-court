@@ -28,7 +28,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Sessions */
+        /**
+         * List Sessions
+         * @description ディベートのセッションの一覧(裁判のセッションは含めない)。
+         */
         get: operations["listSessions"];
         put?: never;
         /**
@@ -232,7 +235,7 @@ export interface paths {
         };
         /**
          * List Events
-         * @description イベントログ(`after` より後の seq)。
+         * @description イベントログ(`after` より後の seq)。ディベート・裁判の両方で使う。
          */
         get: operations["listEvents"];
         put?: never;
@@ -300,10 +303,374 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Cases
+         * @description 遊べる事件の一覧(公開の情報だけ)。既定では solver の検証に合格した事件だけ。
+         */
+        get: operations["listCases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Trial
+         * @description 事件を選んで開廷する。最初の証言の選択肢まで用意して返す。
+         */
+        post: operations["createTrial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trials/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Trial */
+        get: operations["getTrial"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trials/{session_id}/advance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Advance Trial
+         * @description 選択肢の用意待ちなら用意する(通常は選択のたびに自動で用意される)。
+         */
+        post: operations["advanceTrial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trials/{session_id}/choices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Choose Trial Option
+         * @description 選択肢を選ぶ。証人の応答を SSE でストリーミングし、次の選択肢(または問い)まで進める。
+         */
+        post: operations["chooseTrialOption"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trials/{session_id}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer Trial
+         * @description 最後の問いに答えて閉廷する。閉廷後は解説を返す。
+         */
+        post: operations["answerTrial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trials/{session_id}/objections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Object To Explanation
+         * @description 「解説に異議あり」。解説の項目の誤りを報告する(閉廷後のみ)。
+         */
+        post: operations["objectToExplanation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AnswerRequest */
+        AnswerRequest: {
+            /**
+             * Index
+             * @description 最後の問いの選択肢の番号(0 始まり)
+             */
+            index: number;
+        };
+        /** AnswerSubmitted */
+        AnswerSubmitted: {
+            /**
+             * Session Id
+             * @default
+             */
+            session_id: string;
+            /**
+             * Seq
+             * @default 0
+             */
+            seq: number;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp?: string;
+            /** Role */
+            role?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Prompt Version */
+            prompt_version?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "answer_submitted";
+            /** Index */
+            index: number;
+            /** Correct */
+            correct: boolean;
+        };
+        /** Case */
+        Case: {
+            /** Id */
+            id: string;
+            /** Theme */
+            theme: string;
+            /** Title */
+            title: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Overview */
+            overview: string;
+            question: components["schemas"]["CaseQuestion"];
+            /** People */
+            people: components["schemas"]["Person"][];
+            /** Evidence */
+            evidence: components["schemas"]["CaseEvidence"][];
+            /** Testimonies */
+            testimonies: components["schemas"]["Testimony"][];
+            /** Learning Points */
+            learning_points: components["schemas"]["LearningPoint"][];
+            hidden_truth: components["schemas"]["HiddenTruth"];
+            /** Witness Scripts */
+            witness_scripts: components["schemas"]["WitnessScript"][];
+            /** Contradictions */
+            contradictions: components["schemas"]["Contradiction"][];
+            research: components["schemas"]["ResearchReport"];
+            generation?: components["schemas"]["CaseGeneration"] | null;
+            validation?: components["schemas"]["CaseValidation"] | null;
+        };
+        /** CaseEvidence */
+        CaseEvidence: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+            /** Details */
+            details: string[];
+        };
+        /**
+         * CaseGeneration
+         * @description 生成の記録(使ったモデル・プロンプト・計測・作り直しの回数)。
+         */
+        CaseGeneration: {
+            /** Models */
+            models: {
+                [key: string]: string;
+            };
+            /** Prompt Versions */
+            prompt_versions: {
+                [key: string]: string;
+            };
+            /** Regenerations */
+            regenerations: {
+                [key: string]: number;
+            };
+            /** Llm Calls */
+            llm_calls: number;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Llm Time S */
+            llm_time_s: number;
+            /**
+             * Extra
+             * @default {}
+             */
+            extra: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * CasePublic
+         * @description プレイヤーと solver に渡す公開情報。
+         */
+        CasePublic: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Overview */
+            overview: string;
+            question: components["schemas"]["PublicQuestion"];
+            /** People */
+            people: components["schemas"]["Person"][];
+            /** Evidence */
+            evidence: components["schemas"]["CaseEvidence"][];
+            /** Testimonies */
+            testimonies: components["schemas"]["PublicTestimony"][];
+        };
+        /** CaseQuestion */
+        CaseQuestion: {
+            /** Text */
+            text: string;
+            /** Options */
+            options: string[];
+            /** Answer Index */
+            answer_index: number;
+        };
+        /**
+         * CaseSummary
+         * @description 事件の一覧の 1 件(公開の情報と検証の結果だけ)。
+         */
+        CaseSummary: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Theme */
+            theme: string;
+            /** Overview */
+            overview: string;
+            /** Witnesses */
+            witnesses: number;
+            /** Testimonies */
+            testimonies: number;
+            /** Contradictions */
+            contradictions: number;
+            /** Solvable */
+            solvable: boolean;
+            /** Solve Rate */
+            solve_rate: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** CaseValidation */
+        CaseValidation: {
+            /**
+             * Validated At
+             * Format: date-time
+             */
+            validated_at: string;
+            /** Issues */
+            issues: components["schemas"]["CheckIssue"][];
+            /** Solver Runs */
+            solver_runs: components["schemas"]["SolverRun"][];
+            /** Solved */
+            solved: boolean;
+            /**
+             * Solve Rate
+             * @default 0
+             */
+            solve_rate: number;
+            /**
+             * Detect Rate
+             * @default 0
+             */
+            detect_rate: number;
+            /**
+             * Answer Rate
+             * @default 0
+             */
+            answer_rate: number;
+            /**
+             * Attempted Runs
+             * @default 0
+             */
+            attempted_runs: number;
+            /**
+             * Min Solve Rate
+             * @default 0
+             */
+            min_solve_rate: number;
+            /** Unique */
+            unique: boolean;
+            /** Min Steps */
+            min_steps: number | null;
+        };
+        /** CheckIssue */
+        CheckIssue: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+            /** Step */
+            step: string;
+        };
         /** ChoiceMade */
         ChoiceMade: {
             /**
@@ -528,6 +895,15 @@ export interface components {
             /** Claims */
             claims: components["schemas"]["Claim"][];
         };
+        /** CollapseCondition */
+        CollapseCondition: {
+            /** Lie Id */
+            lie_id: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Reaction */
+            reaction: string;
+        };
         /**
          * ConfigView
          * @description 役割ごとのモデル割り当て(設定画面用。api_key は含めない)。
@@ -535,6 +911,26 @@ export interface components {
         ConfigView: {
             /** Roles */
             roles: components["schemas"]["RoleAssignment"][];
+        };
+        /** Contradiction */
+        Contradiction: {
+            /** Id */
+            id: string;
+            /** Testimony Line Id */
+            testimony_line_id: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Lie Id */
+            lie_id: string;
+            /** Learning Point Ids */
+            learning_point_ids: string[];
+            /** Explanation */
+            explanation: string;
+            /**
+             * Traps
+             * @default []
+             */
+            traps: components["schemas"]["Trap"][];
         };
         /**
          * ContradictionCandidate
@@ -557,6 +953,37 @@ export interface components {
             /** Rationale */
             rationale: string | null;
         };
+        /** ContradictionSolved */
+        ContradictionSolved: {
+            /**
+             * Session Id
+             * @default
+             */
+            session_id: string;
+            /**
+             * Seq
+             * @default 0
+             */
+            seq: number;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp?: string;
+            /** Role */
+            role?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Prompt Version */
+            prompt_version?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "contradiction_solved";
+            /** Contradiction Id */
+            contradiction_id: string;
+        };
         /** CreateSessionRequest */
         CreateSessionRequest: {
             /**
@@ -572,6 +999,14 @@ export interface components {
             rounds: number;
             /** @description 人間が担当する陣営。省略すると LLM vs LLM */
             human_side?: components["schemas"]["Side"] | null;
+        };
+        /** CreateTrialRequest */
+        CreateTrialRequest: {
+            /**
+             * Case Id
+             * @description 遊ぶ事件の ID
+             */
+            case_id: string;
         };
         /**
          * DebatePhase
@@ -604,6 +1039,20 @@ export interface components {
             claims: number;
             /** Wall Time S */
             wall_time_s: number | null;
+        };
+        /**
+         * DeviationCheck
+         * @description 証人の応答が台本から逸脱していないかの判定。
+         */
+        DeviationCheck: {
+            /** Confessed */
+            confessed: boolean;
+            /** Leaked Fact Indices */
+            leaked_fact_indices: number[];
+            /** Deviations */
+            deviations: ("premature_confession" | "failed_collapse" | "leak")[];
+            /** Reason */
+            reason: string;
         };
         /** ErrorResponse */
         ErrorResponse: {
@@ -677,10 +1126,117 @@ export interface components {
              */
             created_at: string;
         };
+        /**
+         * Explanation
+         * @description 閉廷後の解説(事件のデータだけから組み立てる。LLM で書かない)。
+         */
+        Explanation: {
+            /** Title */
+            title: string;
+            /** Truth */
+            truth: string;
+            /** Question */
+            question: string;
+            /** Answer */
+            answer: string;
+            /** Items */
+            items: components["schemas"]["ExplanationItem"][];
+            /** Learning Points */
+            learning_points: components["schemas"]["LearningPoint"][];
+        };
+        /**
+         * ExplanationItem
+         * @description 1 つの矛盾の解説。
+         */
+        ExplanationItem: {
+            /** Contradiction Id */
+            contradiction_id: string;
+            /** Witness Name */
+            witness_name: string;
+            /** Testimony Line Id */
+            testimony_line_id: string;
+            /** Testimony Line */
+            testimony_line: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Evidence Name */
+            evidence_name: string;
+            /** Explanation */
+            explanation: string;
+            /** Learning Point Ids */
+            learning_point_ids: string[];
+            /** Traps */
+            traps: components["schemas"]["ExplanationTrap"][];
+        };
+        /**
+         * ExplanationObjected
+         * @description 「解説に異議あり」。プレイヤーが解説の誤りを報告する。
+         */
+        ExplanationObjected: {
+            /**
+             * Session Id
+             * @default
+             */
+            session_id: string;
+            /**
+             * Seq
+             * @default 0
+             */
+            seq: number;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp?: string;
+            /** Role */
+            role?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Prompt Version */
+            prompt_version?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "explanation_objected";
+            /**
+             * Target Kind
+             * @enum {string}
+             */
+            target_kind: "learning_point" | "contradiction" | "trap";
+            /** Target Id */
+            target_id: string;
+            /** Comment */
+            comment: string;
+        };
+        /** ExplanationTrap */
+        ExplanationTrap: {
+            /** Evidence Id */
+            evidence_id: string;
+            /** Evidence Name */
+            evidence_name: string;
+            /** Reasoning */
+            reasoning: string;
+            /** Why Tempting */
+            why_tempting: string;
+            /** Learning Point Id */
+            learning_point_id: string;
+            /** Misconception */
+            misconception: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HiddenTruth */
+        HiddenTruth: {
+            /** Summary */
+            summary: string;
+            /** Timeline */
+            timeline: components["schemas"]["TimelineEvent"][];
+            /** Lies */
+            lies: components["schemas"]["Lie"][];
         };
         /**
          * JudgeScore
@@ -842,6 +1398,53 @@ export interface components {
             type: "llm_call_recorded";
             call: components["schemas"]["LLMCallInfo"];
         };
+        /** LearningPoint */
+        LearningPoint: {
+            /** Id */
+            id: string;
+            /** Knowledge */
+            knowledge: string;
+            /** Explanation */
+            explanation: string;
+            /** Sources */
+            sources: components["schemas"]["LearningSource"][];
+            /** Misconception */
+            misconception: string;
+            /**
+             * Outdated
+             * @default false
+             */
+            outdated: boolean;
+            /** Outdated Belief */
+            outdated_belief?: string | null;
+        };
+        /**
+         * LearningSource
+         * @description 学習ポイントの出典(捜査結果の証拠品と、その検証済みの引用)。
+         */
+        LearningSource: {
+            /** Evidence Id */
+            evidence_id: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+            /** Quote */
+            quote: string;
+        };
+        /** Lie */
+        Lie: {
+            /** Id */
+            id: string;
+            /** Witness Id */
+            witness_id: string;
+            /** False Claim */
+            false_claim: string;
+            /** Truth Event Id */
+            truth_event_id: string;
+            /** Learning Point Ids */
+            learning_point_ids: string[];
+        };
         /**
          * NextTurn
          * @description 次に進む手番。
@@ -861,6 +1464,21 @@ export interface components {
              * @default false
              */
             by_human: boolean;
+        };
+        /** ObjectionRequest */
+        ObjectionRequest: {
+            /**
+             * Target Kind
+             * @enum {string}
+             */
+            target_kind: "learning_point" | "contradiction" | "trap";
+            /**
+             * Target Id
+             * @description 学習ポイント・矛盾の ID、罠は「矛盾の ID/証拠品の ID」
+             */
+            target_id: string;
+            /** Comment */
+            comment: string;
         };
         /** PenaltyApplied */
         PenaltyApplied: {
@@ -897,6 +1515,17 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** Person */
+        Person: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Role */
+            role: string;
+            /** Description */
+            description: string;
+        };
         /** PhaseStarted */
         PhaseStarted: {
             /**
@@ -931,6 +1560,31 @@ export interface components {
              * @default 0
              */
             round: number;
+        };
+        /** PublicQuestion */
+        PublicQuestion: {
+            /** Text */
+            text: string;
+            /** Options */
+            options: string[];
+        };
+        /** PublicTestimony */
+        PublicTestimony: {
+            /** Id */
+            id: string;
+            /** Witness Id */
+            witness_id: string;
+            /** Title */
+            title: string;
+            /** Lines */
+            lines: components["schemas"]["PublicTestimonyLine"][];
+        };
+        /** PublicTestimonyLine */
+        PublicTestimonyLine: {
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
         };
         /**
          * ResearchReport
@@ -1126,6 +1780,38 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** SolverAccusation */
+        SolverAccusation: {
+            /** Testimony Line Id */
+            testimony_line_id: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Reasoning */
+            reasoning: string;
+        };
+        /**
+         * SolverRun
+         * @description solver の 1 回の解答と採点。
+         */
+        SolverRun: {
+            /** Accusations */
+            accusations: components["schemas"]["SolverAccusation"][];
+            /** Answer Index */
+            answer_index: number;
+            /** Found */
+            found: string[];
+            /** Extra */
+            extra: number;
+            /**
+             * Near Misses
+             * @default []
+             */
+            near_misses: string[];
+            /** Steps */
+            steps: number | null;
+            /** Answer Correct */
+            answer_correct: boolean;
+        };
         /**
          * Statement
          * @description 論者の発言。
@@ -1194,6 +1880,311 @@ export interface components {
              * Format: date-time
              */
             started_at: string;
+        };
+        /** Testimony */
+        Testimony: {
+            /** Id */
+            id: string;
+            /** Witness Id */
+            witness_id: string;
+            /** Title */
+            title: string;
+            /** Lines */
+            lines: components["schemas"]["TestimonyLine"][];
+        };
+        /** TestimonyLine */
+        TestimonyLine: {
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
+            /** Lie Id */
+            lie_id?: string | null;
+        };
+        /** TestimonyStarted */
+        TestimonyStarted: {
+            /**
+             * Session Id
+             * @default
+             */
+            session_id: string;
+            /**
+             * Seq
+             * @default 0
+             */
+            seq: number;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp?: string;
+            /** Role */
+            role?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Prompt Version */
+            prompt_version?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "testimony_started";
+            /** Testimony Id */
+            testimony_id: string;
+        };
+        /** TimelineEvent */
+        TimelineEvent: {
+            /** Id */
+            id: string;
+            /** Order */
+            order: number;
+            /** Time */
+            time: string;
+            /** Location */
+            location: string;
+            /** Person Ids */
+            person_ids: string[];
+            /** Description */
+            description: string;
+        };
+        /**
+         * Trap
+         * @description 罠の選択肢(誤った証拠品と、それを選びたくなる誤解)。
+         */
+        Trap: {
+            /** Evidence Id */
+            evidence_id: string;
+            /** Reasoning */
+            reasoning: string;
+            /** Learning Point Id */
+            learning_point_id: string;
+            /** Why Tempting */
+            why_tempting: string;
+        };
+        /** TrialChoiceMade */
+        TrialChoiceMade: {
+            /**
+             * Session Id
+             * @default
+             */
+            session_id: string;
+            /**
+             * Seq
+             * @default 0
+             */
+            seq: number;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp?: string;
+            /** Role */
+            role?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Prompt Version */
+            prompt_version?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "trial_choice_made";
+            option: components["schemas"]["TrialOption"];
+        };
+        /** TrialChoicesPrepared */
+        TrialChoicesPrepared: {
+            /**
+             * Session Id
+             * @default
+             */
+            session_id: string;
+            /**
+             * Seq
+             * @default 0
+             */
+            seq: number;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp?: string;
+            /** Role */
+            role?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Prompt Version */
+            prompt_version?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "trial_choices_prepared";
+            /** Testimony Id */
+            testimony_id: string;
+            /** Options */
+            options: components["schemas"]["TrialOption"][];
+        };
+        /**
+         * TrialExchange
+         * @description 尋問の 1 往復(選んだ選択肢と証人の応答)。
+         */
+        TrialExchange: {
+            option: components["schemas"]["TrialOption"];
+            /** Witness Id */
+            witness_id: string;
+            /** Text */
+            text: string;
+            /** Solved */
+            solved: boolean;
+            /** Penalty */
+            penalty: number;
+            check: components["schemas"]["DeviationCheck"] | null;
+        };
+        /** TrialFinished */
+        TrialFinished: {
+            /**
+             * Session Id
+             * @default
+             */
+            session_id: string;
+            /**
+             * Seq
+             * @default 0
+             */
+            seq: number;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp?: string;
+            /** Role */
+            role?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Prompt Version */
+            prompt_version?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "trial_finished";
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "solved" | "wrong_answer" | "penalty";
+        };
+        /**
+         * TrialOption
+         * @description 尋問の選択肢。`strength` などは選ぶまでプレイヤーに見せない。
+         */
+        TrialOption: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "present" | "probe";
+            /** Line Id */
+            line_id: string;
+            /** Evidence Id */
+            evidence_id?: string | null;
+            /** Label */
+            label: string;
+            /** Strength */
+            strength?: ("strong" | "weak" | "trap") | null;
+            /** Contradiction Id */
+            contradiction_id?: string | null;
+            /** Trap Reason */
+            trap_reason?: string | null;
+        };
+        /**
+         * TrialStarted
+         * @description 裁判の開廷。事件の全体を含める(状態をログだけで再構築できるように)。
+         */
+        TrialStarted: {
+            /**
+             * Session Id
+             * @default
+             */
+            session_id: string;
+            /**
+             * Seq
+             * @default 0
+             */
+            seq: number;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp?: string;
+            /** Role */
+            role?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Prompt Version */
+            prompt_version?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "trial_started";
+            case: components["schemas"]["Case"];
+            /** Models */
+            models: {
+                [key: string]: string;
+            };
+            /** Penalty Gauge */
+            penalty_gauge: number;
+        };
+        /** TrialView */
+        TrialView: {
+            /** Session Id */
+            session_id: string;
+            case: components["schemas"]["CasePublic"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "in_progress" | "answering" | "finished" | "aborted";
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "examining" | "choosing" | "responding" | "answering" | "finished";
+            running_task: components["schemas"]["TaskView"] | null;
+            /** Models */
+            models: {
+                [key: string]: string;
+            };
+            /** Testimony Id */
+            testimony_id: string | null;
+            /** Pending Options */
+            pending_options: components["schemas"]["TrialOption"][];
+            /** Exchanges */
+            exchanges: components["schemas"]["TrialExchange"][];
+            /** Solved Line Ids */
+            solved_line_ids: string[];
+            /** Solved Count */
+            solved_count: number;
+            /** Contradiction Count */
+            contradiction_count: number;
+            /** Penalty Gauge */
+            penalty_gauge: number;
+            /** Penalty Gauge Max */
+            penalty_gauge_max: number;
+            /** Answer Index */
+            answer_index: number | null;
+            /** Answer Correct */
+            answer_correct: boolean | null;
+            /** Result */
+            result: ("solved" | "wrong_answer" | "penalty") | null;
+            /** Aborted */
+            aborted: string | null;
+            explanation: components["schemas"]["Explanation"] | null;
+            /** Objections */
+            objections: components["schemas"]["ExplanationObjected"][];
         };
         /** TurnMetrics */
         TurnMetrics: {
@@ -1274,6 +2265,59 @@ export interface components {
              */
             type: "verdict_delivered";
             verdict: components["schemas"]["Verdict"];
+        };
+        /** WitnessResponded */
+        WitnessResponded: {
+            /**
+             * Session Id
+             * @default
+             */
+            session_id: string;
+            /**
+             * Seq
+             * @default 0
+             */
+            seq: number;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp?: string;
+            /** Role */
+            role?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Prompt Version */
+            prompt_version?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "witness_responded";
+            /** Option Id */
+            option_id: string;
+            /** Witness Id */
+            witness_id: string;
+            /** Text */
+            text: string;
+            /** Should Collapse */
+            should_collapse: boolean;
+            check?: components["schemas"]["DeviationCheck"] | null;
+            /** Call Id */
+            call_id?: string | null;
+        };
+        /** WitnessScript */
+        WitnessScript: {
+            /** Witness Id */
+            witness_id: string;
+            /** Persona */
+            persona: string;
+            /** Hidden Facts */
+            hidden_facts: string[];
+            /** Lie Ids */
+            lie_ids: string[];
+            /** Collapse Conditions */
+            collapse_conditions: components["schemas"]["CollapseCondition"][];
         };
     };
     responses: never;
@@ -1819,7 +2863,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": (components["schemas"]["SessionStarted"] | components["schemas"]["EvidenceCollected"] | components["schemas"]["PhaseStarted"] | components["schemas"]["StatementMade"] | components["schemas"]["CitationIssuesDetected"] | components["schemas"]["ClaimsExtracted"] | components["schemas"]["JudgeScored"] | components["schemas"]["VerdictDelivered"] | components["schemas"]["SessionAborted"] | components["schemas"]["ChoicesPrepared"] | components["schemas"]["ChoiceMade"] | components["schemas"]["PenaltyApplied"] | components["schemas"]["LLMCallRecorded"])[];
+                    "application/json": (components["schemas"]["SessionStarted"] | components["schemas"]["EvidenceCollected"] | components["schemas"]["PhaseStarted"] | components["schemas"]["StatementMade"] | components["schemas"]["CitationIssuesDetected"] | components["schemas"]["ClaimsExtracted"] | components["schemas"]["JudgeScored"] | components["schemas"]["VerdictDelivered"] | components["schemas"]["SessionAborted"] | components["schemas"]["ChoicesPrepared"] | components["schemas"]["ChoiceMade"] | components["schemas"]["PenaltyApplied"] | components["schemas"]["TrialStarted"] | components["schemas"]["TestimonyStarted"] | components["schemas"]["TrialChoicesPrepared"] | components["schemas"]["TrialChoiceMade"] | components["schemas"]["WitnessResponded"] | components["schemas"]["ContradictionSolved"] | components["schemas"]["AnswerSubmitted"] | components["schemas"]["TrialFinished"] | components["schemas"]["ExplanationObjected"] | components["schemas"]["LLMCallRecorded"])[];
                 };
             };
             /** @description セッションがない */
@@ -1866,7 +2910,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description SSE。event は debate(永続イベント、id=seq)/ turn(発言開始)/ token(発言のチャンク)/ progress / task。判決・中断で終わる */
+            /** @description SSE。event は debate(永続イベント、id=seq)/ turn(発言開始)/ token(発言のチャンク)/ progress / task。裁判では turn の代わりに witness(証人の応答開始)を送る。判決・閉廷・中断で終わる */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1999,6 +3043,346 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCases: {
+        parameters: {
+            query?: {
+                /** @description 解けると判定されていない事件も含める */
+                all?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createTrial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTrialRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrialView"];
+                };
+            };
+            /** @description 裁判・事件がない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 現在の状態ではその操作をできない */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getTrial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrialView"];
+                };
+            };
+            /** @description 裁判・事件がない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 現在の状態ではその操作をできない */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advanceTrial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskAccepted"];
+                };
+            };
+            /** @description 裁判・事件がない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 現在の状態ではその操作をできない */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chooseTrialOption: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChooseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskAccepted"];
+                };
+            };
+            /** @description 裁判・事件がない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 現在の状態ではその操作をできない */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 選択肢・項目がない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    answerTrial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrialView"];
+                };
+            };
+            /** @description 裁判・事件がない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 現在の状態ではその操作をできない */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 選択肢・項目がない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    objectToExplanation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ObjectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrialView"];
+                };
+            };
+            /** @description 裁判・事件がない */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 現在の状態ではその操作をできない */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 選択肢・項目がない */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

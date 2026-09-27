@@ -36,6 +36,16 @@ export function useTitleData() {
   }, []);
 }
 
+/** タイトル画面(裁判): 遊べる事件の一覧。 */
+export function useCases(all: boolean) {
+  return useLoad(() => api.GET("/api/cases", { params: { query: { all } } }).then(unwrap), [all]);
+}
+
+/** 事件を選んで開廷する。セッション ID を返す。 */
+export async function openTrial(caseId: string): Promise<string> {
+  return unwrap(await api.POST("/api/trials", { body: { case_id: caseId } })).session_id;
+}
+
 /** 設定画面: 役割ごとのモデル割り当て。 */
 export function useConfig() {
   return useLoad(() => api.GET("/api/config").then(unwrap), []);

@@ -8,7 +8,9 @@ import type { Side } from "@/api/client";
 import { openSession, useTitleData } from "@/hooks/useApi";
 import { SIDE_LABELS } from "@/lib/labels";
 
-type Mode = "watch" | "play";
+import { CasePicker } from "./CasePicker";
+
+type Mode = "watch" | "play" | "trial";
 type EvidenceSource = "sample" | "upload" | "research";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -73,24 +75,39 @@ export function TitleScreen() {
 
   const field = "rounded border border-[var(--court-wood-light)] bg-black/30 px-3 py-2";
 
+  const modes = (
+    <fieldset className="space-y-2">
+      <legend className="font-bold">モード</legend>
+      <div className="flex flex-wrap gap-4">
+        <label className="flex items-center gap-2">
+          <input type="radio" checked={mode === "play"} onChange={() => setMode("play")} />
+          対戦(人間 vs LLM)
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" checked={mode === "watch"} onChange={() => setMode("watch")} />
+          観戦(LLM vs LLM)
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" checked={mode === "trial"} onChange={() => setMode("trial")} />
+          裁判(事件を解く)
+        </label>
+      </div>
+    </fieldset>
+  );
+
   return (
     <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
-      <form
-        onSubmit={submit}
-        className="space-y-5 rounded-lg border border-[var(--court-wood-light)] bg-[var(--court-wood)]/60 p-5"
-      >
-        <fieldset className="space-y-2">
-          <legend className="font-bold">モード</legend>
-          <div className="flex flex-wrap gap-4">
-            <label className="flex items-center gap-2">
-              <input type="radio" checked={mode === "play"} onChange={() => setMode("play")} />
-              対戦(人間 vs LLM)
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="radio" checked={mode === "watch"} onChange={() => setMode("watch")} />
-              観戦(LLM vs LLM)
-            </label>
-          </div>
+      {mode === "trial" ? (
+        <div className="space-y-5 rounded-lg border border-[var(--court-wood-light)] bg-[var(--court-wood)]/60 p-5">
+          {modes}
+          <CasePicker />
+        </div>
+      ) : (
+        <form
+          onSubmit={submit}
+          className="space-y-5 rounded-lg border border-[var(--court-wood-light)] bg-[var(--court-wood)]/60 p-5"
+        >
+          {modes}
           {mode === "play" && (
             <div className="flex items-center gap-3 text-sm">
               あなたの陣営:
@@ -102,78 +119,78 @@ export function TitleScreen() {
               ))}
             </div>
           )}
-        </fieldset>
 
-        <fieldset className="space-y-2">
-          <legend className="font-bold">証拠品</legend>
-          <div className="flex flex-wrap gap-4 text-sm">
-            <label className="flex items-center gap-1">
-              <input type="radio" checked={source === "sample"} onChange={() => setSource("sample")} />
-              同梱の捜査結果
-            </label>
-            <label className="flex items-center gap-1">
-              <input type="radio" checked={source === "upload"} onChange={() => setSource("upload")} />
-              JSON ファイル
-            </label>
-            <label className="flex items-center gap-1">
+          <fieldset className="space-y-2">
+            <legend className="font-bold">証拠品</legend>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <label className="flex items-center gap-1">
+                <input type="radio" checked={source === "sample"} onChange={() => setSource("sample")} />
+                同梱の捜査結果
+              </label>
+              <label className="flex items-center gap-1">
+                <input type="radio" checked={source === "upload"} onChange={() => setSource("upload")} />
+                JSON ファイル
+              </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  checked={source === "research"}
+                  onChange={() => setSource("research")}
+                />
+                Web で捜査(SearXNG が必要)
+              </label>
+            </div>
+            {source === "sample" && (
+              <select className={field} value={sample} onChange={(e) => selectSample(e.target.value)}>
+                {samples.map((s) => (
+                  <option key={s.name} value={s.name}>
+                    {s.topic}(証拠品 {s.evidence_count} 件)
+                  </option>
+                ))}
+              </select>
+            )}
+            {source === "upload" && (
               <input
-                type="radio"
-                checked={source === "research"}
-                onChange={() => setSource("research")}
+                type="file"
+                accept="application/json"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
-              Web で捜査(SearXNG が必要)
-            </label>
-          </div>
-          {source === "sample" && (
-            <select className={field} value={sample} onChange={(e) => selectSample(e.target.value)}>
-              {samples.map((s) => (
-                <option key={s.name} value={s.name}>
-                  {s.topic}(証拠品 {s.evidence_count} 件)
-                </option>
-              ))}
-            </select>
-          )}
-          {source === "upload" && (
+            )}
+          </fieldset>
+
+          <label className="block space-y-1">
+            <span className="font-bold">論題</span>
             <input
-              type="file"
-              accept="application/json"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className={`${field} w-full`}
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="例: 日本はベーシックインカムを導入すべきか"
+              required
             />
-          )}
-        </fieldset>
+          </label>
 
-        <label className="block space-y-1">
-          <span className="font-bold">論題</span>
-          <input
-            className={`${field} w-full`}
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="例: 日本はベーシックインカムを導入すべきか"
-            required
-          />
-        </label>
+          <label className="flex items-center gap-3">
+            <span className="font-bold">反論の往復数</span>
+            <input
+              type="number"
+              min={1}
+              max={5}
+              className={`${field} w-20`}
+              value={rounds}
+              onChange={(e) => setRounds(Number(e.target.value))}
+            />
+          </label>
 
-        <label className="flex items-center gap-3">
-          <span className="font-bold">反論の往復数</span>
-          <input
-            type="number"
-            min={1}
-            max={5}
-            className={`${field} w-20`}
-            value={rounds}
-            onChange={(e) => setRounds(Number(e.target.value))}
-          />
-        </label>
-
-        {error && <p className="text-sm text-red-300">{error}</p>}
-        <button
-          type="submit"
-          disabled={busy || !topic}
-          className="rounded bg-[var(--court-accent)] px-6 py-2 font-bold text-black disabled:opacity-50"
-        >
-          {busy ? "開廷準備中…" : "開廷"}
-        </button>
-      </form>
+          {error && <p className="text-sm text-red-300">{error}</p>}
+          <button
+            type="submit"
+            disabled={busy || !topic}
+            className="rounded bg-[var(--court-accent)] px-6 py-2 font-bold text-black disabled:opacity-50"
+          >
+            {busy ? "開廷準備中…" : "開廷"}
+          </button>
+        </form>
+      )}
 
       <aside className="space-y-2">
         <h2 className="font-bold">最近の審理</h2>

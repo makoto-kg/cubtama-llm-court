@@ -20,6 +20,7 @@ from rich.table import Table
 
 from llm_court.cli.case import case_app
 from llm_court.cli.play import PlayLoop
+from llm_court.cli.trial import eval_trial, trial
 from llm_court.config import ConfigError, ModelsConfig, Role, Settings, load_models_config
 from llm_court.domain import (
     CitationIssuesDetected,
@@ -63,6 +64,8 @@ app = typer.Typer(
 config_app = typer.Typer(help="設定ファイルの確認。", no_args_is_help=True)
 app.add_typer(config_app, name="config")
 app.add_typer(case_app, name="case")
+app.command("trial")(trial)
+app.command("eval-trial")(eval_trial)
 
 console = Console()
 
