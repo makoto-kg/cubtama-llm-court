@@ -23,6 +23,7 @@ from llm_court.scenario.solver import SolverOutput, score, summarize_runs
 from llm_court.scenario.store import CaseNotFoundError, CaseStore
 from tests.case_fakes import (
     HIDDEN_TRUTH,
+    LEAK,
     LEARNING_POINTS,
     MATERIALS,
     SOLVED,
@@ -41,6 +42,7 @@ def make_generator(
     max_regenerations: int = 2,
     draft_retries: int = 1,
     solver_runs: int = 2,
+    check_overview_leaks: bool = True,
     research: Any = None,
 ) -> CaseGenerator:
     fake = FakeChatBackend(responder=responder)
@@ -61,6 +63,7 @@ def make_generator(
             max_regenerations=max_regenerations,
             draft_retries=draft_retries,
             solver_runs=solver_runs,
+            check_overview_leaks=check_overview_leaks,
         ),
         research=research,
     )
@@ -131,7 +134,7 @@ async def test_generate_solvable_case(
     assert len(v.solver_runs) == 2
     g = case.generation
     assert g is not None
-    assert g.llm_calls == 6  # 4 段階 + solver 2 回
+    assert g.llm_calls == 7  # 4 段階 + 漏れの検査 + solver 2 回
     assert "scenario_writer/materials" in g.prompt_versions
     assert g.models["solver"]
 
@@ -475,3 +478,46 @@ async def test_validation_uses_solve_rate(
     assert case.validation is not None
     assert case.validation.solved and case.validation.solve_rate == 1.0
     assert case.validation.attempted_runs == 3
+
+
+# --- 公開する概要の漏れ ---
+
+
+async def test_overview_leak_regenerates_materials(
+    prompts: PromptLoader, research_report: ResearchReport
+) -> None:
+    def leaks(n: int, _r: ChatRequest) -> FakeResponse:
+        return text(LEAK if n == 0 else {"leaks": []})
+
+    responder = CaseResponder({"LeakCheckOutput": leaks})
+    case = await generate(prompts, research_report, responder)
+    assert case.validation is not None and case.validation.solved
+    assert responder.calls["MaterialsOutput"] == 2
+    feedback = responder.requests["MaterialsOutput"][1].messages[0].content
+    # 概要にある引用だけを採用する(概要にない引用・存在しない嘘は捨てる)
+    assert "「報告書に不審な点があり」が、嘘 L-01 の答えを明かしています" in feedback
+    assert "概要にない引用" not in feedback and "L-09" not in feedback
+    # 漏れの検査は判定に非公開の嘘と真相を使い、solver は漏れがなくなってから呼ぶ
+    leak_prompt = responder.requests["LeakCheckOutput"][0].messages[-1].content
+    assert "L-01" in leak_prompt and "実験結果が届く" in leak_prompt
+    assert responder.calls["SolverOutput"] == 2
+
+
+async def test_leak_check_can_be_disabled(
+    prompts: PromptLoader, research_report: ResearchReport
+) -> None:
+    responder = CaseResponder({"LeakCheckOutput": lambda _n, _r: text(LEAK)})
+    generator = make_generator(prompts, responder, check_overview_leaks=False)
+    case = await generator.generate("給付", evidence=research_report)
+    assert case.validation is not None and case.validation.solved
+    assert "LeakCheckOutput" not in responder.calls
+
+
+async def test_validate_reports_leak(
+    prompts: PromptLoader, research_report: ResearchReport
+) -> None:
+    case = await generate(prompts, research_report, CaseResponder())
+    responder = CaseResponder({"LeakCheckOutput": lambda _n, _r: text(LEAK)})
+    validated = await make_generator(prompts, responder).validate(case)
+    assert validated.validation is not None
+    assert [i.code for i in validated.validation.issues] == ["overview_leak"]

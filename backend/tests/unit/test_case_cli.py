@@ -7,10 +7,11 @@ from typer.testing import CliRunner
 from llm_court.cli import main as cli_main
 from llm_court.cli.main import app
 from llm_court.domain import ResearchReport
+from llm_court.llm import ChatRequest
 from llm_court.llm.client import BackendFactory
 from llm_court.scenario.store import CaseStore
 from tests.case_fakes import UNSOLVED, CaseResponder, text
-from tests.fakes import FakeChatBackend
+from tests.fakes import FakeChatBackend, FakeResponse
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 runner = CliRunner()
@@ -76,3 +77,24 @@ def test_validate_unknown_case(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     assert result.exit_code == 1
     assert "ありません" in result.output
     assert "まだありません" in runner.invoke(app, ["case", "list"]).output
+
+
+def test_validate_fails_on_leak(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, evidence: Path
+) -> None:
+    from tests.case_fakes import LEAK
+
+    calls = {"n": 0}
+
+    def leaks(_n: int, _r: ChatRequest) -> FakeResponse:
+        calls["n"] += 1
+        return text(LEAK if calls["n"] > 1 else {"leaks": []})  # 生成時は通り、再検証で漏れ
+
+    setup(monkeypatch, tmp_path, CaseResponder({"LeakCheckOutput": leaks}))
+    result = runner.invoke(app, ["case", "generate", "給付", "--evidence", str(evidence)])
+    assert result.exit_code == 0, result.output
+    case_id = re.search(r"cases/(\w+)\.json", result.output)
+    assert case_id is not None
+    result = runner.invoke(app, ["case", "validate", case_id.group(1)])
+    assert result.exit_code == 1
+    assert "嘘 L-01 の答えを明かしています" in result.output

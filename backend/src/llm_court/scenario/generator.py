@@ -14,6 +14,7 @@ from llm_court.config import Role, ScenarioSettings
 from llm_court.domain import (
     Case,
     CaseGeneration,
+    CheckIssue,
     Contradiction,
     Evidence,
     HiddenTruth,
@@ -36,6 +37,7 @@ from llm_court.scenario.drafts import (
     to_learning_points,
     to_materials,
 )
+from llm_court.scenario.leaks import LeakChecker
 from llm_court.scenario.solver import CaseSolver, summarize_runs
 
 logger = logging.getLogger(__name__)
@@ -74,6 +76,7 @@ class CaseGenerator:
         self._settings = settings
         self._research = research
         self._solver = CaseSolver(llm, prompts)
+        self._leaks = LeakChecker(llm, prompts)
 
     # --- 各段階 ---
 
@@ -247,7 +250,7 @@ class CaseGenerator:
             case = self._assemble(
                 case_id, theme, evidence, lps, people, truth, materials, contradictions
             )
-            issues = check_case(case, self._mode)
+            issues = await self._check(case, progress)
             step = earliest_step(issues)
             if step is None:
                 progress(f"solver で検証しています({self._settings.solver_runs} 回)")
@@ -261,7 +264,7 @@ class CaseGenerator:
                 feedback = _solver_feedback(case)
                 step = "materials"
             else:
-                # 整合性チェックに失敗した事件は solver にかけない(検証結果にはチェック結果だけ残す)
+                # チェックに失敗した事件は solver にかけない(検証結果にはチェック結果だけ残す)
                 feedback = [i.message for i in issues if i.step == step]
                 case = case.model_copy(update={"validation": summarize_runs([], issues)})
             if round_ == self._settings.max_regenerations:
@@ -283,9 +286,18 @@ class CaseGenerator:
         assert case is not None
         return case.model_copy(update={"generation": self._generation(tracker, started)})
 
-    async def validate(self, case: Case, runs: int | None = None) -> Case:
-        """保存済みの事件を検証し直す(整合性チェックと solver)。"""
+    async def _check(self, case: Case, progress: ProgressFn | None = None) -> list[CheckIssue]:
+        """規則のチェックと、公開する文の漏れの検査。規則で問題があれば漏れの検査は省く。"""
         issues = check_case(case, self._mode)
+        if issues or not self._settings.check_overview_leaks:
+            return issues
+        if progress:
+            progress("概要が答えを明かしていないか確認しています")
+        return await self._leaks.check(case)
+
+    async def validate(self, case: Case, runs: int | None = None) -> Case:
+        """保存済みの事件を検証し直す(整合性チェック・漏れの検査・solver)。"""
+        issues = await self._check(case)
         validation = await self._solver.validate(
             case, runs or self._settings.solver_runs, issues, self._settings.min_solve_rate
         )

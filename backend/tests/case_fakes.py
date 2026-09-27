@@ -204,6 +204,21 @@ UNSOLVED: dict[str, Any] = {
 }
 
 
+NO_LEAKS: dict[str, Any] = {"leaks": []}
+
+LEAK: dict[str, Any] = {
+    "leaks": [
+        {
+            "lie_id": "L-01",
+            "excerpt": "報告書に不審な点があり",
+            "reason": "報告書の誤りを示唆している",
+        },
+        {"lie_id": "L-02", "excerpt": "概要にない引用", "reason": "採用されない"},
+        {"lie_id": "L-09", "excerpt": "監査役", "reason": "存在しない嘘"},
+    ]
+}
+
+
 def text(data: dict[str, Any]) -> FakeResponse:
     return FakeResponse.text(json.dumps(data, ensure_ascii=False))
 
@@ -232,5 +247,6 @@ class CaseResponder:
                 "MaterialsOutput": MATERIALS,
                 "TrapsOutput": TRAPS,
                 "SolverOutput": SOLVED,
+                "LeakCheckOutput": NO_LEAKS,
             }[name]
         )

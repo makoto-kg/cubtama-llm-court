@@ -201,7 +201,8 @@ def validate(
         raise typer.Exit(code=1) from e
     store.save(validated)
     print_validation(validated)
-    if not (validated.validation and validated.validation.solved):
+    v = validated.validation
+    if v is None or not v.solved or v.issues:
         raise typer.Exit(code=1)
 
 

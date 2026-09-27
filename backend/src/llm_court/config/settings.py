@@ -41,6 +41,8 @@ class ScenarioSettings(BaseModel):
     """各段階の出力の参照が不正なとき、問題点を伝えて作り直す上限回数。"""
     solver_runs: int = Field(default=3, ge=1)
     """solver に解かせる回数。solver の結果は揺れるため複数回解かせ、解答率で判定する。"""
+    check_overview_leaks: bool = True
+    """公開する概要・問いが嘘の答えを明かしていないかを LLM で検査する。"""
     min_solve_rate: float = Field(default=0.6, ge=0.0, le=1.0)
     """「解ける」とみなす解答率(解けた回 ÷ 試行回数)の下限。"""
 
