@@ -140,6 +140,23 @@ uv run llm-court play "週休3日制を導入すべきか" \
 
 新しいテーマの証拠品は `llm-court research "<テーマ>"` で作れます(SearXNG が必要)。結果は `data/research/` に保存され、`--evidence` に渡せます。
 
+## オフラインで遊ぶ(バックエンド不要)
+
+裁判型は、バックエンドも LLM サーバーもなしで、フロントエンドだけで遊べます。事件の全行動に対する証人の応答を事前に LLM で生成したパックを、`frontend/public/offline/` に同梱しています。
+
+```bash
+cd frontend
+pnpm dev                 # http://localhost:3000/offline/
+# または、配布用に静的ビルド(タイトルがオフラインの一覧になる)
+NEXT_PUBLIC_OFFLINE_ONLY=1 pnpm build
+python3 -m http.server -b 127.0.0.1 -d out 8080   # 任意の静的サーバーで配信できる
+```
+
+- 進行はブラウザに保存され、再読み込みしても続きから遊べる(「最初からやり直す」で消せる)
+- 「解説に異議あり」はブラウザに保存され、JSON で書き出せる
+- 新しい事件のパックは `uv run llm-court offline export <事件の ID...>` で作る(backend/)
+  - 全行動の応答を生成し、台本からの逸脱を検査して、逸脱した応答は作り直す(`--retries`)
+
 ## CLI で遊ぶ(裁判)
 
 `llm-court trial` は、生成済みの事件をバックエンドだけで遊ぶ簡易モードです(シナリオ検証用)。

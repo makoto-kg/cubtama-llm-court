@@ -19,6 +19,7 @@ from rich.status import Status
 from rich.table import Table
 
 from llm_court.cli.case import case_app
+from llm_court.cli.offline import offline_app
 from llm_court.cli.play import PlayLoop
 from llm_court.cli.trial import eval_trial, trial
 from llm_court.config import ConfigError, ModelsConfig, Role, Settings, load_models_config
@@ -64,6 +65,7 @@ app = typer.Typer(
 config_app = typer.Typer(help="設定ファイルの確認。", no_args_is_help=True)
 app.add_typer(config_app, name="config")
 app.add_typer(case_app, name="case")
+app.add_typer(offline_app, name="offline")
 app.command("trial")(trial)
 app.command("eval-trial")(eval_trial)
 

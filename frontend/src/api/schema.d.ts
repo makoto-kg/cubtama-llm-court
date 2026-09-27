@@ -2319,6 +2319,135 @@ export interface components {
             /** Collapse Conditions */
             collapse_conditions: components["schemas"]["CollapseCondition"][];
         };
+        /**
+         * OfflineAnswers
+         * @description 進行に必要な非公開の情報(真相・台本は含めない)。
+         */
+        OfflineAnswers: {
+            /** Contradictions */
+            contradictions: components["schemas"]["OfflineContradiction"][];
+            /** Answer Index */
+            answer_index: number;
+        };
+        /** OfflineContradiction */
+        OfflineContradiction: {
+            /** Id */
+            id: string;
+            /** Testimony Line Id */
+            testimony_line_id: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Traps */
+            traps: components["schemas"]["OfflineTrap"][];
+        };
+        /** OfflineMeta */
+        OfflineMeta: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Models */
+            models: {
+                [key: string]: string;
+            };
+            /** Prompt Versions */
+            prompt_versions: {
+                [key: string]: string;
+            };
+            /** Responses */
+            responses: number;
+            /** Deviations */
+            deviations: number;
+            /** Unchecked */
+            unchecked: number;
+        };
+        /** OfflineMode */
+        OfflineMode: {
+            /** Penalty Gauge */
+            penalty_gauge: number;
+            /** Penalties */
+            penalties: {
+                [key: string]: number;
+            };
+            /** Distractor Options */
+            distractor_options: number;
+            /** Probe Options */
+            probe_options: number;
+        };
+        /**
+         * OfflineResponse
+         * @description 1 つの行動に対する証人の応答。
+         */
+        OfflineResponse: {
+            /** Key */
+            key: string;
+            /** Witness Id */
+            witness_id: string;
+            /** Text */
+            text: string;
+            /** Should Collapse */
+            should_collapse: boolean;
+            check: components["schemas"]["DeviationCheck"] | null;
+            /** Attempts */
+            attempts: number;
+            /** @default null */
+            call: components["schemas"]["LLMCallInfo"] | null;
+        };
+        /** OfflineTrap */
+        OfflineTrap: {
+            /** Evidence Id */
+            evidence_id: string;
+            /** Why Tempting */
+            why_tempting: string;
+        };
+        /** OfflinePack */
+        OfflinePack: {
+            /**
+             * Format Version
+             * @default 1
+             */
+            format_version: number;
+            case: components["schemas"]["CasePublic"];
+            /** Theme */
+            theme: string;
+            answers: components["schemas"]["OfflineAnswers"];
+            explanation: components["schemas"]["Explanation"];
+            mode: components["schemas"]["OfflineMode"];
+            /** Responses */
+            responses: components["schemas"]["OfflineResponse"][];
+            meta: components["schemas"]["OfflineMeta"];
+        };
+        /** OfflineIndexItem */
+        OfflineIndexItem: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Theme */
+            theme: string;
+            /** Overview */
+            overview: string;
+            /** Testimonies */
+            testimonies: number;
+            /** Contradictions */
+            contradictions: number;
+            /** Responses */
+            responses: number;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+        };
+        /**
+         * OfflineIndex
+         * @description オフラインで遊べる事件の一覧(`index.json`)。
+         */
+        OfflineIndex: {
+            /** Cases */
+            cases: components["schemas"]["OfflineIndexItem"][];
+        };
     };
     responses: never;
     parameters: never;

@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
+from typing import Any
 
 import httpx
 from fastapi import FastAPI, Request
@@ -26,6 +27,7 @@ from llm_court.llm import LLMClient, PromptLoader
 from llm_court.llm.backend import OpenAIChatBackend
 from llm_court.llm.client import BackendFactory
 from llm_court.modes import DEBATE_MODE, TRIAL_MODE
+from llm_court.offline.models import OfflineIndex, OfflinePack
 from llm_court.research.cache import PageCache
 from llm_court.research.fetch import PageFetcher
 from llm_court.research.pipeline import ResearchPipeline
@@ -118,4 +120,32 @@ def create_app(
 
     app.include_router(router)
     app.include_router(trial_router)
+    _add_offline_schemas(app)
     return app
+
+
+def _add_offline_schemas(app: FastAPI) -> None:
+    """API では使わないオフラインパックの型も OpenAPI に載せる(フロントエンドの型生成用)。"""
+    from fastapi.openapi.utils import get_openapi
+
+    def openapi() -> dict[str, Any]:
+        if app.openapi_schema is not None:
+            return app.openapi_schema
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+        )
+        components: dict[str, Any] = schema.setdefault("components", {}).setdefault("schemas", {})
+        for model in (OfflinePack, OfflineIndex):
+            extra = model.model_json_schema(
+                ref_template="#/components/schemas/{model}", mode="serialization"
+            )
+            for name, definition in extra.pop("$defs", {}).items():
+                components.setdefault(name, definition)
+            components.setdefault(model.__name__, extra)
+        app.openapi_schema = schema
+        return schema
+
+    app.openapi = openapi  # type: ignore[method-assign]

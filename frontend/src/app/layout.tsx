@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { OFFLINE_ONLY } from "@/lib/offline/config";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,9 +23,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Link href="/" className="hover:underline">
               タイトル
             </Link>
-            <Link href="/settings/" className="hover:underline">
-              設定
+            <Link href="/offline/" className="hover:underline">
+              オフライン
             </Link>
+            {!OFFLINE_ONLY && (
+              <Link href="/settings/" className="hover:underline">
+                設定
+              </Link>
+            )}
           </nav>
         </header>
         <main className="mx-auto max-w-6xl p-4">{children}</main>

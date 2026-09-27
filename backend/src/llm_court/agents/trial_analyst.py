@@ -16,6 +16,14 @@ def _quote(text: str, limit: int = 40) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
+def present_label(line_text: str, evidence_name: str) -> str:
+    return f"「{_quote(line_text)}」に「{evidence_name}」をつきつける"
+
+
+def probe_label(line_text: str) -> str:
+    return f"「{_quote(line_text)}」をゆさぶる"
+
+
 class TrialAnalyst:
     def __init__(self, mode: TrialMode) -> None:
         self._mode = mode
@@ -62,10 +70,7 @@ class TrialAnalyst:
                     kind="present",
                     line_id=line_id,
                     evidence_id=evidence_id,
-                    label=(
-                        f"「{_quote(lines[line_id].text)}」に"
-                        f"「{evidence[evidence_id].name}」をつきつける"
-                    ),
+                    label=present_label(lines[line_id].text, evidence[evidence_id].name),
                     strength=strength,
                     contradiction_id=contradiction_id,
                     trap_reason=trap_reason,
@@ -108,7 +113,7 @@ class TrialAnalyst:
                     id="",
                     kind="probe",
                     line_id=line_id,
-                    label=f"「{_quote(lines[line_id].text)}」をゆさぶる",
+                    label=probe_label(lines[line_id].text),
                 )
             )
 

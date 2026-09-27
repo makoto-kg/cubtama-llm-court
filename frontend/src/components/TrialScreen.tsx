@@ -5,12 +5,12 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import type { TrialOption, TrialView } from "@/api/client";
+import type { LLMCallInfo, ObjectionTarget, TrialOption, TrialView } from "@/api/client";
 import { ASSETS } from "@/assets/manifest";
 import { useTrialSession } from "@/hooks/useTrialSession";
 import { llmCalls } from "@/lib/events";
 import { STRENGTH_LABELS } from "@/lib/labels";
-import { currentTestimony, optionsByLine, personName } from "@/lib/trial";
+import { currentTestimony, optionsByLine, personName, type WitnessStream } from "@/lib/trial";
 import { useTrialStore } from "@/store/trial";
 
 import { CutInView } from "./CutIn";
@@ -90,7 +90,6 @@ export function TrialScreen() {
   const sessionId = useSearchParams().get("session");
   const actions = useTrialSession(sessionId);
   const { view, events, streaming, progress, task, cutIn, error, clearCutIn } = useTrialStore();
-  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const calls = useMemo(() => llmCalls(events), [events]);
   const running = Boolean(view?.running_task) || task?.status === "started";
   const needsAdvance = view?.stage === "examining" && !running;
@@ -109,7 +108,55 @@ export function TrialScreen() {
     );
   }
   if (!view) return <p>{error ?? "読み込み中…"}</p>;
+  return (
+    <TrialBoard
+      view={view}
+      streaming={streaming}
+      progress={progress}
+      running={running}
+      error={error}
+      cutIn={cutIn}
+      onClearCutIn={clearCutIn}
+      calls={calls}
+      onChoose={(id) => void actions.choose(id)}
+      onAnswer={(i) => void actions.answer(i)}
+      onObject={actions.object}
+    />
+  );
+}
 
+export type TrialBoardProps = {
+  view: TrialView;
+  streaming: WitnessStream | null;
+  progress: string | null;
+  running: boolean;
+  error: string | null;
+  cutIn: { text: string; key: number; strong?: boolean } | null;
+  onClearCutIn: () => void;
+  calls: LLMCallInfo[];
+  onChoose: (optionId: string) => void;
+  onAnswer: (index: number) => void;
+  onObject: (kind: ObjectionTarget, id: string, comment: string) => Promise<void>;
+  /** 閉廷前に思考ログの代わりに出す注記。 */
+  logNotice?: string;
+};
+
+/** 裁判の画面の表示(オンライン・オフライン共通)。データの取得と操作は props で受け取る。 */
+export function TrialBoard({
+  view,
+  streaming,
+  progress,
+  running,
+  error,
+  cutIn,
+  onClearCutIn,
+  calls,
+  onChoose,
+  onAnswer,
+  onObject,
+  logNotice = "書記官の記録(思考ログ)は、台本と真相を含むため閉廷後に公開します。",
+}: TrialBoardProps) {
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const finished = view.status === "finished" || view.status === "aborted";
   const testimony = currentTestimony(view);
   const last = view.exchanges.at(-1) ?? null;
@@ -128,7 +175,7 @@ export function TrialScreen() {
 
   return (
     <div className="space-y-4">
-      <CutInView cutIn={cutIn} onDone={clearCutIn} />
+      <CutInView cutIn={cutIn} onDone={onClearCutIn} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-xs opacity-70">事件</p>
@@ -149,7 +196,7 @@ export function TrialScreen() {
 
       {finished ? (
         <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
-          <TrialExplanation view={view} onObject={actions.object} />
+          <TrialExplanation view={view} onObject={onObject} />
           <div className="space-y-4">
             <ExchangeLog view={view} reveal />
             <ThinkingLog calls={calls} />
@@ -206,7 +253,7 @@ export function TrialScreen() {
                   {view.case.question.options.map((option, i) => (
                     <button
                       key={i}
-                      onClick={() => void actions.answer(i)}
+                      onClick={() => onAnswer(i)}
                       disabled={running}
                       className="rounded bg-black/40 p-3 text-left hover:bg-white/10 disabled:opacity-50"
                     >
@@ -246,7 +293,7 @@ export function TrialScreen() {
                                   option={o}
                                   evidenceName={o.evidence_id ? (evidenceNames.get(o.evidence_id) ?? o.evidence_id) : null}
                                   disabled={running}
-                                  onChoose={(id) => void actions.choose(id)}
+                                  onChoose={onChoose}
                                 />
                               ))}
                             </div>
@@ -262,7 +309,7 @@ export function TrialScreen() {
           <div className="space-y-4">
             <ExchangeLog view={view} reveal={false} />
             <p className="rounded bg-black/20 p-2 text-xs opacity-70">
-              書記官の記録(思考ログ)は、台本と真相を含むため閉廷後に公開します。
+              {logNotice}
             </p>
           </div>
         </div>

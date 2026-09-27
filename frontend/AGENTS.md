@@ -39,11 +39,19 @@ pnpm gen:api         # backend の OpenAPI から API 型を生成(src/api/schem
 - Server Components はビルド時に描画できるシェルにだけ使い、データの取得はクライアント(ブラウザ)から API に対して行う
 - 変更後は `pnpm build` が通り、`out/` に各ページの `index.html` が出ることを確認する
 
+### 完全オフラインモード(ADR 0014)
+
+- `/offline/` 以下の画面は API を一切呼ばない。同梱のパック(`public/offline/index.json`・`public/offline/cases/<id>.json`)を `fetch` で読む
+- パックは `llm-court offline export` で作る。手で編集しない
+- 進行ロジックは `src/lib/offline/` に TypeScript で移植してある(backend の `agents/trial_analyst.py`・`engine/trial.py` と同じ規則)。規則を変えるときは両方を直す
+- 状態の真実は `localStorage` の行動の列。状態は `replay` で作り直す
+- `NEXT_PUBLIC_OFFLINE_ONLY=1 pnpm build` で、API のない配布用の SPA になる(タイトルがオフラインの一覧になる)
+
 ### Backend との関係
 
 - Next.js は純粋なフロントエンド。BFF層・API Route でのゲームロジック実装はしない
 - API の型は `pnpm gen:api` で生成したものを使う。手書きの型定義で代用しない。backend の API を変えたら再生成する
-- ゲーム状態の真実は backend のイベントログ。クライアントは表示用の派生状態のみを持ち、勝敗・ペナルティ等の判定をクライアントで行わない
+- ゲーム状態の真実は backend のイベントログ。クライアントは表示用の派生状態のみを持ち、勝敗・ペナルティ等の判定をクライアントで行わない(例外は完全オフラインモードだけ。ADR 0014)
 - ストリーミングは SSE(EventSource)で受け取り、タイプライター表示にそのまま流す
 
 ### UI・演出

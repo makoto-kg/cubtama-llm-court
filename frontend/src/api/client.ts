@@ -34,6 +34,10 @@ export type TrialOption = Schemas["TrialOption"];
 export type TrialExchange = Schemas["TrialExchange"];
 export type Explanation = Schemas["Explanation"];
 export type ObjectionTarget = Schemas["ObjectionRequest"]["target_kind"];
+export type ExplanationObjected = Schemas["ExplanationObjected"];
+export type OfflinePack = Schemas["OfflinePack"];
+export type OfflineIndex = Schemas["OfflineIndex"];
+export type OfflineResponse = Schemas["OfflineResponse"];
 
 export class ApiError extends Error {
   constructor(

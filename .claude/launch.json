@@ -25,6 +25,20 @@
         "cd frontend && pnpm dev --port 3000"
       ],
       "port": 3000
+    },
+    {
+      "name": "offline-static",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "-b",
+        "127.0.0.1",
+        "-d",
+        "frontend/out",
+        "8090"
+      ],
+      "port": 8090
     }
   ]
 }

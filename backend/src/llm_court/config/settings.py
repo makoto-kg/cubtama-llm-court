@@ -88,6 +88,9 @@ class Settings(BaseSettings):
     eval_output_dir: Path = Path("data/eval")
     """評価ハーネスの結果(CSV・Markdown・ディベートのログ)の保存先。"""
 
+    offline_output_dir: Path = Path("../frontend/public/offline")
+    """オフラインパック(`llm-court offline export`)の出力先。フロントエンドに同梱する。"""
+
     api_cors_origins: list[str] = ["http://localhost:3000"]
     """API の CORS で許可するオリジン(フロントエンドの開発サーバー)。"""
 

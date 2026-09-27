@@ -35,12 +35,14 @@ uv run llm-court case validate <case_id> # 事件を検証し直す(整合性チ
 uv run llm-court case list               # 生成済みの事件の一覧
 uv run llm-court trial <case_id> --reveal  # 裁判型を CLI で遊ぶ(シナリオ検証用。q で中断、--resume で再開)
 uv run llm-court eval-trial <case_id...> -n 1  # 自動プレイヤーで証人の台本逸脱率を測り data/eval/ に出力
+uv run llm-court offline export <case_id...>   # 全行動の証人の応答を事前生成し、オフラインパックを frontend/public/offline/ に出力
+uv run llm-court offline list            # 同梱のオフラインパックの一覧
 uv run llm-court serve                   # API サーバー(http://127.0.0.1:8000/api、ドキュメントは /docs)
 uv run llm-court openapi -o openapi.json # OpenAPI スキーマを出力(フロントエンドの型生成用)
 uv run pre-commit install                # pre-commit フック(ルートの .pre-commit-config.yaml)を有効化
 ```
 
-CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(Phase 2)、`debate`(Phase 3)、`eval`(Phase 4)、`serve` / `openapi`(Phase 5)、`play`(Phase 6 の追加。ADR 0010)、`case generate` / `case validate`(Phase 8)、`trial` / `eval-trial`(Phase 9)
+CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(Phase 2)、`debate`(Phase 3)、`eval`(Phase 4)、`serve` / `openapi`(Phase 5)、`play`(Phase 6 の追加。ADR 0010)、`case generate` / `case validate`(Phase 8)、`trial` / `eval-trial`(Phase 9)、`offline export` / `offline list`(Phase 10。ADR 0014)
 
 ## ディレクトリの責務(`src/llm_court/`)
 
@@ -53,6 +55,7 @@ CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(P
 | `agents/` | 各役割(論者・裁判長・分析官・証人・代弁者 等)。プロンプト組み立てと出力の解釈のみを担い、状態は直接変更しない |
 | `modes/` | ディベート型・裁判型のモード定義(ルーブリック、矛盾タイプ、勝利条件) |
 | `scenario/` | 裁判型の事件生成・整合性チェック・solver検証 |
+| `offline/` | 完全オフラインモードのパック(事前シミュレーション)。型は OpenAPI の components にも載せる |
 | `eval/` | 評価ハーネスと指標計算 |
 | `api/` | FastAPI(REST + SSE)。Phase 5 以降 |
 | `cli/` | Typer + Rich のCLI |

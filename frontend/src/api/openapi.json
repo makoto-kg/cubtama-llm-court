@@ -6223,6 +6223,321 @@
           "collapse_conditions"
         ],
         "title": "WitnessScript"
+      },
+      "OfflineAnswers": {
+        "description": "進行に必要な非公開の情報(真相・台本は含めない)。",
+        "properties": {
+          "contradictions": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineContradiction"
+            },
+            "title": "Contradictions",
+            "type": "array"
+          },
+          "answer_index": {
+            "title": "Answer Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "contradictions",
+          "answer_index"
+        ],
+        "title": "OfflineAnswers",
+        "type": "object"
+      },
+      "OfflineContradiction": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "testimony_line_id": {
+            "title": "Testimony Line Id",
+            "type": "string"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "traps": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineTrap"
+            },
+            "title": "Traps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "testimony_line_id",
+          "evidence_id",
+          "traps"
+        ],
+        "title": "OfflineContradiction",
+        "type": "object"
+      },
+      "OfflineMeta": {
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "models": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Models",
+            "type": "object"
+          },
+          "prompt_versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Prompt Versions",
+            "type": "object"
+          },
+          "responses": {
+            "title": "Responses",
+            "type": "integer"
+          },
+          "deviations": {
+            "title": "Deviations",
+            "type": "integer"
+          },
+          "unchecked": {
+            "title": "Unchecked",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "generated_at",
+          "models",
+          "prompt_versions",
+          "responses",
+          "deviations",
+          "unchecked"
+        ],
+        "title": "OfflineMeta",
+        "type": "object"
+      },
+      "OfflineMode": {
+        "properties": {
+          "penalty_gauge": {
+            "title": "Penalty Gauge",
+            "type": "integer"
+          },
+          "penalties": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Penalties",
+            "type": "object"
+          },
+          "distractor_options": {
+            "title": "Distractor Options",
+            "type": "integer"
+          },
+          "probe_options": {
+            "title": "Probe Options",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "penalty_gauge",
+          "penalties",
+          "distractor_options",
+          "probe_options"
+        ],
+        "title": "OfflineMode",
+        "type": "object"
+      },
+      "OfflineResponse": {
+        "description": "1 つの行動に対する証人の応答。",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "witness_id": {
+            "title": "Witness Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "should_collapse": {
+            "title": "Should Collapse",
+            "type": "boolean"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviationCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "call": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LLMCallInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "key",
+          "witness_id",
+          "text",
+          "should_collapse",
+          "check",
+          "attempts"
+        ],
+        "title": "OfflineResponse",
+        "type": "object"
+      },
+      "OfflineTrap": {
+        "properties": {
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "why_tempting": {
+            "title": "Why Tempting",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidence_id",
+          "why_tempting"
+        ],
+        "title": "OfflineTrap",
+        "type": "object"
+      },
+      "OfflinePack": {
+        "properties": {
+          "format_version": {
+            "default": 1,
+            "title": "Format Version",
+            "type": "integer"
+          },
+          "case": {
+            "$ref": "#/components/schemas/CasePublic"
+          },
+          "theme": {
+            "title": "Theme",
+            "type": "string"
+          },
+          "answers": {
+            "$ref": "#/components/schemas/OfflineAnswers"
+          },
+          "explanation": {
+            "$ref": "#/components/schemas/Explanation"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/OfflineMode"
+          },
+          "responses": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineResponse"
+            },
+            "title": "Responses",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/OfflineMeta"
+          }
+        },
+        "required": [
+          "case",
+          "theme",
+          "answers",
+          "explanation",
+          "mode",
+          "responses",
+          "meta"
+        ],
+        "title": "OfflinePack",
+        "type": "object"
+      },
+      "OfflineIndexItem": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "theme": {
+            "title": "Theme",
+            "type": "string"
+          },
+          "overview": {
+            "title": "Overview",
+            "type": "string"
+          },
+          "testimonies": {
+            "title": "Testimonies",
+            "type": "integer"
+          },
+          "contradictions": {
+            "title": "Contradictions",
+            "type": "integer"
+          },
+          "responses": {
+            "title": "Responses",
+            "type": "integer"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "theme",
+          "overview",
+          "testimonies",
+          "contradictions",
+          "responses",
+          "generated_at"
+        ],
+        "title": "OfflineIndexItem",
+        "type": "object"
+      },
+      "OfflineIndex": {
+        "description": "オフラインで遊べる事件の一覧(`index.json`)。",
+        "properties": {
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineIndexItem"
+            },
+            "title": "Cases",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cases"
+        ],
+        "title": "OfflineIndex",
+        "type": "object"
       }
     }
   }
