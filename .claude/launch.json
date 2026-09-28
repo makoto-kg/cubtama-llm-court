@@ -28,15 +28,10 @@
     },
     {
       "name": "offline-static",
-      "runtimeExecutable": "python3",
+      "runtimeExecutable": "sh",
       "runtimeArgs": [
-        "-m",
-        "http.server",
-        "-b",
-        "127.0.0.1",
-        "-d",
-        "frontend/out",
-        "8090"
+        "-c",
+        "cd frontend && PORT=8090 npm run serve"
       ],
       "port": 8090
     }

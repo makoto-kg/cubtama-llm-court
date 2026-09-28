@@ -95,7 +95,7 @@ http://localhost:3000 を開きます。
    - 解説の誤りを見つけたら「解説に異議あり」で項目を選んで報告できる(イベントとして記録される)
    - 尋問の記録(台本からの逸脱の判定付き)と思考ログは、台本と真相を含むため閉廷後に公開される
 
-`/settings/` で役割ごとのモデル割り当てを確認できます。フロントエンドは `pnpm build` で SPA として `frontend/out/` にビルドでき、任意の静的サーバーで配信できます(接続先は `NEXT_PUBLIC_API_ORIGIN`)。
+`/settings/` で役割ごとのモデル割り当てを確認できます。フロントエンドは `pnpm build` で SPA として `frontend/out/` にビルドでき、`npm run serve`(または任意の静的サーバー)で配信できます(接続先は `NEXT_PUBLIC_API_ORIGIN`)。
 
 ## CLI で遊ぶ(人間 vs LLM)
 
@@ -149,7 +149,7 @@ cd frontend
 pnpm dev                 # http://localhost:3000/offline/
 # または、配布用に静的ビルド(タイトルがオフラインの一覧になる)
 NEXT_PUBLIC_OFFLINE_ONLY=1 pnpm build
-python3 -m http.server -b 127.0.0.1 -d out 8080   # 任意の静的サーバーで配信できる
+npm run serve            # out/ を http://127.0.0.1:8080 で配信(PORT・HOST で変更可。任意の静的サーバーでもよい)
 ```
 
 - 進行はブラウザに保存され、再読み込みしても続きから遊べる(「最初からやり直す」で消せる)

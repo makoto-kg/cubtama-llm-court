@@ -21,6 +21,7 @@ Next.js(App Router)による法廷バトルADVの画面。
 pnpm install
 pnpm dev             # 開発サーバー(http://localhost:3000)。backend の `llm-court serve` も起動しておく
 pnpm build           # SPA として静的ビルド(out/ に出力)
+pnpm serve           # 静的ビルド(out/)を配信(http://127.0.0.1:8080。PORT・HOST で変更。npm run serve でも可)
 pnpm lint
 pnpm typecheck
 pnpm test
