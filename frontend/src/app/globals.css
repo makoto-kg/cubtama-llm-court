@@ -105,3 +105,115 @@ body {
   color: #ff6b4a;
   border-color: #ff6b4a;
 }
+
+/* 法廷の画面(裁判型)。席ごとの壁・手前の机・台詞の枠(すべてオリジナルの意匠) */
+.court-wall-judge {
+  background:
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.18) 0 2px, transparent 2px 64px),
+    linear-gradient(#5a3a22, #2e1d11);
+}
+
+.court-wall-plaintiff {
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 3px, transparent 3px 80px),
+    linear-gradient(#27405a, #16222f);
+}
+
+.court-wall-defendant {
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 3px, transparent 3px 80px),
+    linear-gradient(#4f2a33, #2a151a);
+}
+
+.court-wall-witness {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(255, 240, 200, 0.18), transparent 60%),
+    linear-gradient(#3b4a3f, #1c241f);
+}
+
+.court-desk {
+  background: linear-gradient(#7a4f2c, var(--court-wood));
+  border-top: 6px solid #9a6a3d;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.dialogue-name {
+  background: var(--court-accent);
+  color: #1a1410;
+}
+
+.dialogue-box {
+  background: rgba(10, 12, 24, 0.86);
+  border: 2px solid rgba(244, 236, 221, 0.85);
+  box-shadow: 0 0 0 3px rgba(10, 12, 24, 0.6);
+}
+
+@keyframes dialogue-next {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 3px;
+  }
+}
+
+.dialogue-next {
+  color: var(--court-accent);
+  animation: dialogue-next 0.8s ease-in-out infinite;
+}
+
+@keyframes shot-in {
+  0% {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.shot-in {
+  animation: shot-in 0.25s ease-out;
+}
+
+.gavel-shake {
+  animation: shake 0.3s linear 1;
+}
+
+@keyframes gavel-sound {
+  0% {
+    opacity: 0;
+    transform: scale(1.8) rotate(-8deg);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1) rotate(-8deg);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.gavel-sound {
+  color: var(--court-ink);
+  text-shadow:
+    0 0 6px #000,
+    0 0 2px #000;
+  animation: gavel-sound 0.9s ease-out forwards;
+}
+
+/* 証言の読み上げ(証言の行は台詞と色を分ける) */
+.testimony-title {
+  background: rgba(10, 12, 24, 0.8);
+  border: 1px solid var(--court-accent);
+  color: var(--court-accent);
+}
+
+.testimony-text {
+  color: #a8e6b8;
+}

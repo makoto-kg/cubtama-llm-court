@@ -8,7 +8,10 @@ import {
   cutInForTrialEvent,
   objectionTargets,
   optionsByLine,
+  testimonyExamined,
 } from "./trial";
+import { makePack } from "./offline/__fixtures__/pack";
+import { apply, start, toTrialView } from "./offline/engine";
 
 const option = (id: string, kind: "present" | "probe", lineId: string): TrialOption => ({
   id,
@@ -97,5 +100,19 @@ describe("objectionTargets", () => {
       "trap:X-01/CE-03",
       "learning_point:LP-01",
     ]);
+  });
+});
+
+describe("testimonyExamined", () => {
+  it("いまの証言の行への行動があるときだけ true(前の証言の行動は数えない)", () => {
+    let state = start(makePack(), "seed");
+    expect(testimonyExamined(toTrialView(state))).toBe(false);
+    const probe = state.pending.find((o) => o.kind === "probe")!;
+    state = apply(state, { kind: "choose", optionId: probe.id });
+    expect(testimonyExamined(toTrialView(state))).toBe(true);
+    const strong = state.pending.find((o) => o.strength === "strong")!;
+    state = apply(state, { kind: "choose", optionId: strong.id });
+    expect(state.testimonyId).toBe("TS-02");
+    expect(testimonyExamined(toTrialView(state))).toBe(false);
   });
 });

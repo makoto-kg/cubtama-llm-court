@@ -45,6 +45,17 @@ export function currentTestimony(view: TrialView) {
   return view.case.testimonies.find((t) => t.id === view.testimony_id) ?? null;
 }
 
+/** 証言の読み上げの前後に出すカットイン(オリジナルの文言)。 */
+export const TESTIMONY_CUT_IN = { start: "証言開始", examine: "尋問開始" } as const;
+
+/** 現在の証言の尋問がもう始まっているか(その証言の行への行動がある)。始まっていれば読み上げを省く。 */
+export function testimonyExamined(view: TrialView): boolean {
+  const testimony = currentTestimony(view);
+  if (!testimony) return false;
+  const lineIds = new Set(testimony.lines.map((l) => l.id));
+  return view.exchanges.some((x) => lineIds.has(x.option.line_id));
+}
+
 export function personName(view: TrialView, personId: string): string {
   return view.case.people.find((p) => p.id === personId)?.name ?? personId;
 }

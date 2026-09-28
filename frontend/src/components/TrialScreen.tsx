@@ -1,20 +1,28 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import type { LLMCallInfo, ObjectionTarget, TrialOption, TrialView } from "@/api/client";
-import { ASSETS } from "@/assets/manifest";
 import { useTrialSession } from "@/hooks/useTrialSession";
 import { llmCalls } from "@/lib/events";
 import { STRENGTH_LABELS } from "@/lib/labels";
-import { currentTestimony, optionsByLine, personName, type WitnessStream } from "@/lib/trial";
+import { shouldShowOpening } from "@/lib/opening";
+import {
+  currentTestimony,
+  optionsByLine,
+  personName,
+  testimonyExamined,
+  type WitnessStream,
+} from "@/lib/trial";
 import { useTrialStore } from "@/store/trial";
 
+import { CourtShot, DialogueBox } from "./CourtScene";
 import { CutInView } from "./CutIn";
+import { OpeningSequence } from "./OpeningSequence";
 import { PenaltyGauge } from "./PenaltyGauge";
+import { TestimonyRecital } from "./TestimonyRecital";
 import { ThinkingLog } from "./ThinkingLog";
 import { TrialExplanation } from "./TrialExplanation";
 import { Typewriter } from "./Typewriter";
@@ -157,8 +165,20 @@ export function TrialBoard({
   logNotice = "書記官の記録(思考ログ)は、台本と真相を含むため閉廷後に公開します。",
 }: TrialBoardProps) {
   const [evidenceOpen, setEvidenceOpen] = useState(false);
+  // 開廷の場面は、尋問が始まる前に開いたときだけ見せる(途中から再開した裁判では出さない)
+  const [openingDone, setOpeningDone] = useState(() => !shouldShowOpening(view));
+  // 読み上げを終えた証言と、読み上げを始めてよい証言(尋問の途中から再開した証言は読み上げない)
+  const [heardId, setHeardId] = useState(() => (testimonyExamined(view) ? view.testimony_id : null));
+  const [playId, setPlayId] = useState<string | null>(null);
   const finished = view.status === "finished" || view.status === "aborted";
   const testimony = currentTestimony(view);
+  // 証言が始まったら、まず証人に一通り証言させてから尋問の操作を出す。
+  // 証人の応答・カットインの最中は待ち、前の応答が画面にあればクリックで次の証言へ進める
+  const recitalNeeded = Boolean(testimony) && view.stage !== "answering" && heardId !== testimony?.id;
+  const quiet = !streaming && !cutIn;
+  const recitalPlaying =
+    recitalNeeded && quiet && (playId === testimony?.id || view.exchanges.length === 0);
+  const recitalPending = recitalNeeded && quiet && !recitalPlaying;
   const last = view.exchanges.at(-1) ?? null;
   const witnessId = streaming?.witnessId ?? testimony?.witness_id ?? last?.witness_id ?? null;
   const witnessName = witnessId ? personName(view, witnessId) : "証人";
@@ -172,6 +192,10 @@ export function TrialBoard({
   const speaking =
     streaming ?? (lastForWitness ? { witnessId: lastForWitness.witness_id, text: lastForWitness.text } : null);
   const textKey = streaming ? `s-${view.exchanges.length}` : `e-${view.exchanges.length}`;
+
+  if (!openingDone && !finished) {
+    return <OpeningSequence view={view} onFinish={() => setOpeningDone(true)} />;
+  }
 
   return (
     <div className="space-y-4">
@@ -210,40 +234,44 @@ export function TrialBoard({
               <p className="mt-1">{view.case.overview}</p>
             </details>
 
-            <div>
-              <div className="relative flex h-56 items-end justify-center overflow-hidden rounded-t-lg bg-gradient-to-b from-[#1f2a2a] to-[var(--court-wood)]">
-                <Image
-                  src={ASSETS.witness}
-                  alt={witnessName}
-                  width={170}
-                  height={221}
-                  className={streaming ? "speaking" : ""}
-                  priority
-                />
-              </div>
-              <div className="min-h-32 rounded-b-lg border-t-4 border-[var(--court-accent)] bg-black/70 p-4">
-                <p className="mb-1 font-bold text-[var(--court-accent)]">{witnessName}</p>
-                <p className="leading-relaxed">
-                  {speaking ? (
-                    <Typewriter text={speaking.text} resetKey={textKey} active={Boolean(streaming)} />
-                  ) : (
-                    "……(証言台に立っている)"
+            {recitalPlaying && testimony ? (
+              <TestimonyRecital
+                key={testimony.id}
+                view={view}
+                testimony={testimony}
+                onFinish={() => setHeardId(testimony.id)}
+              />
+            ) : recitalPending && last && testimony ? (
+              <CourtShot kind="witness" alt={personName(view, last.witness_id)}>
+                <DialogueBox name={personName(view, last.witness_id)} waiting onClick={() => setPlayId(testimony.id)}>
+                  <p className="whitespace-pre-wrap">{last.text}</p>
+                </DialogueBox>
+              </CourtShot>
+            ) : (
+              <CourtShot kind="witness" alt={witnessName} speaking={Boolean(streaming)}>
+                <DialogueBox name={witnessName}>
+                  <p>
+                    {speaking ? (
+                      <Typewriter text={speaking.text} resetKey={textKey} active={Boolean(streaming)} />
+                    ) : (
+                      "……(証言台に立っている)"
+                    )}
+                  </p>
+                  {progress && running && !streaming && (
+                    <p className="mt-2 animate-pulse text-xs opacity-70">{progress}</p>
                   )}
-                </p>
-                {progress && running && !streaming && (
-                  <p className="mt-2 animate-pulse text-xs opacity-70">{progress}</p>
-                )}
-                {lastForWitness &&
-                  !streaming &&
-                  lastForWitness.option.strength &&
-                  lastForWitness.option.strength !== "strong" && (
-                    <p className="mt-2 text-xs text-amber-300">
-                      つきつけた組: {STRENGTH_LABELS[lastForWitness.option.strength]}
-                      {lastForWitness.penalty > 0 && `(ペナルティ −${lastForWitness.penalty})`}
-                    </p>
-                  )}
-              </div>
-            </div>
+                  {lastForWitness &&
+                    !streaming &&
+                    lastForWitness.option.strength &&
+                    lastForWitness.option.strength !== "strong" && (
+                      <p className="mt-2 text-xs text-amber-300">
+                        つきつけた組: {STRENGTH_LABELS[lastForWitness.option.strength]}
+                        {lastForWitness.penalty > 0 && `(ペナルティ −${lastForWitness.penalty})`}
+                      </p>
+                    )}
+                </DialogueBox>
+              </CourtShot>
+            )}
 
             {view.stage === "answering" ? (
               <div className="space-y-2 rounded-lg border-2 border-[var(--court-accent)] bg-black/40 p-4">
@@ -262,8 +290,16 @@ export function TrialBoard({
                   ))}
                 </div>
               </div>
+            ) : recitalPending && testimony ? (
+              <button
+                onClick={() => setPlayId(testimony.id)}
+                className="w-full rounded-lg border-2 border-[var(--court-accent)] bg-black/40 p-3 font-bold hover:bg-white/10"
+              >
+                次の証言を聞く ▶
+              </button>
             ) : (
-              testimony && (
+              testimony &&
+              !recitalNeeded && (
                 <section className="space-y-2 rounded-lg border border-[var(--court-wood-light)] p-3">
                   <h2 className="font-bold">
                     {testimony.title}
@@ -271,6 +307,17 @@ export function TrialBoard({
                       証人: {personName(view, testimony.witness_id)}
                     </span>
                   </h2>
+                  {!running && (
+                    <button
+                      onClick={() => {
+                        setHeardId(null);
+                        setPlayId(testimony.id);
+                      }}
+                      className="rounded border px-2 py-0.5 text-xs"
+                    >
+                      証言をもう一度聞く
+                    </button>
+                  )}
                   {running && <p className="text-sm opacity-70">証人が答えています…</p>}
                   <ol className="space-y-2">
                     {testimony.lines.map((line) => {

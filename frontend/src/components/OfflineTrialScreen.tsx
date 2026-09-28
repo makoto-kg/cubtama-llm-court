@@ -62,6 +62,7 @@ export function OfflineTrialScreen() {
         </div>
       </div>
       <TrialBoard
+        key={state.seed}
         view={view}
         streaming={streaming}
         progress={null}
