@@ -145,17 +145,25 @@ export function TrialBoard({
   const groups = optionsByLine(lineIds, view.pending_options);
   const lineId = focusLine(lineIds, groups, lineChoice);
   const line = testimony?.lines.find((l) => l.id === lineId) ?? null;
-  // 台詞の枠: 証人の応答(ストリーミング中、または指し直す前の、この証言への最新の応答)か、指している証言の行
-  const lastInTestimony = last && lineIds.includes(last.option.line_id) ? last : null;
+  // 台詞の枠: 証人の応答(ストリーミング中、または行を指し直す前の最新の応答)か、指している証言の行
+  const replyFromLast = !streaming && last && (lineAt === null || lineAt < view.exchanges.length) ? last : null;
   const reply =
-    streaming ??
-    (lastInTestimony && (lineAt === null || lineAt < view.exchanges.length)
-      ? { witnessId: lastInTestimony.witness_id, text: lastInTestimony.text }
-      : null);
-  const textKey = streaming ? `s-${view.exchanges.length}` : `e-${view.exchanges.length}`;
+    streaming ?? (replyFromLast ? { witnessId: replyFromLast.witness_id, text: replyFromLast.text } : null);
+  // 応答ごとに同じキーにする(ストリーミングが終わって記録に移っても打ち直さない)
+  const replyKey = `r-${streaming ? view.exchanges.length : view.exchanges.length - 1}`;
+  // カットイン(確認!・反証!・証言崩壊! など)が消えるまで、応答の台詞は送らない
+  const holdReply = Boolean(cutIn);
+  const replyText = (text: string) => (
+    <Typewriter text={text} resetKey={replyKey} active={Boolean(streaming)} paused={holdReply} />
+  );
   const pointLine = (id: string | null) => {
     if (!id) return;
     setLineChoice(id);
+    setLineAt(view.exchanges.length);
+  };
+  // 証言の読み上げを終えたら、前の証言への応答ではなく証言の行を出す
+  const finishRecital = (id: string) => {
+    setHeardId(id);
     setLineAt(view.exchanges.length);
   };
 
@@ -211,13 +219,13 @@ export function TrialBoard({
   let panel: ReactNode = null;
   if (recitalPlaying && testimony) {
     stage = (
-      <TestimonyRecital key={testimony.id} view={view} testimony={testimony} onFinish={() => setHeardId(testimony.id)} />
+      <TestimonyRecital key={testimony.id} view={view} testimony={testimony} onFinish={() => finishRecital(testimony.id)} />
     );
   } else if (recitalPending && last && testimony) {
     stage = (
       <CourtShot kind="witness" alt={personName(view, last.witness_id)}>
         <DialogueBox name={personName(view, last.witness_id)} waiting onClick={() => setPlayId(testimony.id)}>
-          <p className="whitespace-pre-wrap">{last.text}</p>
+          <p>{replyText(last.text)}</p>
         </DialogueBox>
       </CourtShot>
     );
@@ -232,15 +240,20 @@ export function TrialBoard({
   } else if (view.stage === "answering" && !questionReady && last && !streaming) {
     stage = (
       <CourtShot kind="witness" alt={personName(view, last.witness_id)}>
-        <DialogueBox name={personName(view, last.witness_id)} waiting onClick={() => setQuestionReady(true)}>
-          <p className="whitespace-pre-wrap">{last.text}</p>
+        <DialogueBox
+          name={personName(view, last.witness_id)}
+          waiting={!holdReply}
+          onClick={holdReply ? undefined : () => setQuestionReady(true)}
+        >
+          <p>{replyText(last.text)}</p>
         </DialogueBox>
       </CourtShot>
     );
     panel = (
       <button
         onClick={() => setQuestionReady(true)}
-        className="w-full rounded-lg border-2 border-[var(--court-accent)] bg-black/40 p-3 font-bold hover:bg-white/10"
+        disabled={holdReply}
+        className="w-full rounded-lg border-2 border-[var(--court-accent)] bg-black/40 p-3 font-bold hover:bg-white/10 disabled:opacity-40"
       >
         最後の問いへ ▶
       </button>
@@ -273,32 +286,28 @@ export function TrialBoard({
     );
   } else {
     const showLine = !reply && line;
+    const busy = Boolean(streaming) || running || holdReply;
+    const speakerName = reply ? personName(view, reply.witnessId) : witnessName;
     stage = (
-      <CourtShot kind="witness" alt={witnessName} speaking={Boolean(streaming)}>
+      <CourtShot kind="witness" alt={speakerName} speaking={Boolean(streaming) && !holdReply}>
         <DialogueBox
-          name={witnessName}
-          waiting={!streaming && !running}
-          onClick={
-            streaming || running
-              ? undefined
-              : () => pointLine(reply ? lineId : stepLine(lineIds, lineId, 1))
-          }
+          name={speakerName}
+          waiting={!busy}
+          onClick={busy ? undefined : () => pointLine(reply ? lineId : stepLine(lineIds, lineId, 1))}
         >
           {reply ? (
             <>
-              <p>
-                <Typewriter text={reply.text} resetKey={textKey} active={Boolean(streaming)} />
-              </p>
+              <p>{replyText(reply.text)}</p>
               {progress && running && !streaming && (
                 <p className="mt-1 animate-pulse text-xs opacity-70">{progress}</p>
               )}
-              {lastInTestimony &&
-                !streaming &&
-                lastInTestimony.option.strength &&
-                lastInTestimony.option.strength !== "strong" && (
+              {replyFromLast &&
+                !holdReply &&
+                replyFromLast.option.strength &&
+                replyFromLast.option.strength !== "strong" && (
                   <p className="mt-1 text-xs text-amber-300">
-                    つきつけた組: {STRENGTH_LABELS[lastInTestimony.option.strength]}
-                    {lastInTestimony.penalty > 0 && `(ペナルティ −${lastInTestimony.penalty})`}
+                    つきつけた組: {STRENGTH_LABELS[replyFromLast.option.strength]}
+                    {replyFromLast.penalty > 0 && `(ペナルティ −${replyFromLast.penalty})`}
                   </p>
                 )}
             </>
@@ -324,7 +333,7 @@ export function TrialBoard({
         lineId={lineId}
         options={view.pending_options.filter((o) => o.line_id === lineId)}
         solved={solved}
-        running={running || Boolean(streaming)}
+        running={busy}
         onLine={pointLine}
         onChoose={onChoose}
         onPresent={() => setEvidence({ present: true })}
