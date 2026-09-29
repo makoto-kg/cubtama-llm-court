@@ -25,6 +25,11 @@ export function briefOverview(overview: string, maxLength = 80): string {
   return first.length > maxLength ? `${first.slice(0, maxLength - 1)}…` : first;
 }
 
+/** 被告(役割が「被告」で始まる人物)。事件のデータに当事者の欄はないので、役割の書き方で決める。 */
+export function defendantOf(view: TrialView) {
+  return view.case.people.find((p) => p.role.startsWith("被告")) ?? null;
+}
+
 /**
  * 開廷の台本(裁判長の挨拶と超概要 → 原告・被告の宣言 → 審理開始)。
  * 事件の公開データだけから組み立てる(LLM は使わない。オフラインでも同じ台本になる)。
@@ -32,6 +37,7 @@ export function briefOverview(overview: string, maxLength = 80): string {
 export function openingScript(view: TrialView): OpeningLine[] {
   const first = currentTestimony(view) ?? view.case.testimonies[0];
   const witness = first ? personName(view, first.witness_id) : null;
+  const defendant = defendantOf(view);
   return [
     {
       speaker: "judge",
@@ -40,6 +46,9 @@ export function openingScript(view: TrialView): OpeningLine[] {
       text: `ただいまより、「${view.case.title}」の審理を開廷します。`,
     },
     { speaker: "judge", text: `本件の概要です。${briefOverview(view.case.overview)}` },
+    ...(defendant
+      ? [{ speaker: "judge" as const, text: `被告は、${defendant.name}。${defendant.description}` }]
+      : []),
     { speaker: "judge", text: "原告側、準備はよろしいですか。" },
     {
       speaker: "plaintiff",

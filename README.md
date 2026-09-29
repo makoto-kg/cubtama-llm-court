@@ -142,7 +142,7 @@ uv run llm-court play "週休3日制を導入すべきか" \
 
 ## オフラインで遊ぶ(バックエンド不要)
 
-裁判型は、バックエンドも LLM サーバーもなしで、フロントエンドだけで遊べます。事件の全行動に対する証人の応答を事前に LLM で生成したパックを、`frontend/public/offline/` に同梱しています。
+裁判型は、バックエンドも LLM サーバーもなしで、フロントエンドだけで遊べます。事件の全行動に対する証人の応答を事前に LLM で生成したパックを、`frontend/public/offline/` に同梱しています。一覧の先頭のチュートリアル「消えたチュール事件」(猫の事件)から始めると、遊び方がわかります。
 
 ```bash
 cd frontend
@@ -156,6 +156,7 @@ npm run serve            # out/ を http://127.0.0.1:8080 で配信(PORT・HOST 
 - 「解説に異議あり」はブラウザに保存され、JSON で書き出せる
 - 新しい事件のパックは `uv run llm-court offline export <事件の ID...>` で作る(backend/)
   - 全行動の応答を生成し、台本からの逸脱を検査して、逸脱した応答は作り直す(`--retries`)
+- 応答を人が書く台本の事件(チュートリアルなど)は、`backend/scenarios/` の YAML から `uv run llm-court offline scripted <ファイル...>` で作る(LLM は使わない)
 
 ## CLI で遊ぶ(裁判)
 

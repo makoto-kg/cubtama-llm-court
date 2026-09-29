@@ -6309,6 +6309,20 @@
           "unchecked": {
             "title": "Unchecked",
             "type": "integer"
+          },
+          "source": {
+            "default": "simulated",
+            "enum": [
+              "simulated",
+              "scripted"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "tutorial": {
+            "default": false,
+            "title": "Tutorial",
+            "type": "boolean"
           }
         },
         "required": [
@@ -6507,6 +6521,11 @@
             "format": "date-time",
             "title": "Generated At",
             "type": "string"
+          },
+          "tutorial": {
+            "default": false,
+            "title": "Tutorial",
+            "type": "boolean"
           }
         },
         "required": [

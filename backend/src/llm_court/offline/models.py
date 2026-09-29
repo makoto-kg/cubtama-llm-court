@@ -5,6 +5,7 @@
 """
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -64,6 +65,9 @@ class OfflineMeta(_Frozen):
     deviations: int
     """逸脱が残った応答の数。"""
     unchecked: int
+    source: Literal["simulated", "scripted"] = "simulated"
+    """応答の出どころ。simulated = LLM で事前生成、scripted = 人が書いた台本(ADR 0016)。"""
+    tutorial: bool = False
 
 
 class OfflinePack(_Frozen):
@@ -86,6 +90,7 @@ class OfflineIndexItem(_Frozen):
     contradictions: int
     responses: int
     generated_at: datetime
+    tutorial: bool = False
 
 
 class OfflineIndex(_Frozen):

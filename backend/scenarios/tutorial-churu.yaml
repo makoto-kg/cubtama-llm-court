@@ -1,0 +1,147 @@
+# チュートリアル「消えたチュール事件」(台本のパック。ADR 0016)
+#
+# パックにする: uv run llm-court offline scripted scenarios/tutorial-churu.yaml
+# 応答(responses)は、起こりうる全行動(全行の「ゆさぶる」と、全行 × 全証拠品の「つきつける」)に書く。
+tutorial: true
+case:
+  id: tutorial-churu
+  theme: チュートリアル(証言の矛盾を見つけて、証拠品をつきつける)
+  title: 消えたチュール事件
+  created_at: "2026-09-28T00:00:00Z"
+  overview: ある家の台所で、猫用おやつのチュールが1本消えた。疑われているのは、食いしん坊の茶トラ猫・トラ。トラの証言と証拠品を見比べて、食い違うところに証拠品を「つきつける」のが、この裁判の目標だ。
+  question:
+    text: チュールを食べてしまったのは誰?
+    options:
+      - トラ
+      - クロ
+      - 飼い主さん
+      - 近所のカラス
+    answer_index: 0
+  people:
+    - id: P-01
+      name: トラ
+      role: 被告(茶トラ猫)
+      description: 食いしん坊の茶トラ猫。毛はオレンジ色
+    - id: P-02
+      name: クロ
+      role: 同居猫(黒猫)
+      description: トラと同じ家に住む、真っ黒な黒猫。夜は窓辺のベッドで寝る
+    - id: P-03
+      name: 飼い主さん
+      role: 飼い主
+      description: トラとクロの飼い主。チュールを戸棚にしまっていた
+  evidence:
+    - id: CE-01
+      name: 空のチュールの袋
+      description: ソファの下から見つかった、空っぽのチュールの袋
+      details:
+        - 中身は空っぽ
+        - 袋のはしにオレンジ色の毛が1本ついていた
+    - id: CE-02
+      name: 飼い主さんのメモ
+      description: 飼い主さんが朝に書いたメモ
+      details:
+        - 夜9時、チュールを戸棚の2段目にしまった
+        - 朝7時、戸棚が少し開いていて、チュールが1本なくなっていた
+    - id: CE-03
+      name: ねこたちのプロフィール
+      description: この家の猫たちの紹介カード
+      details:
+        - トラ:茶トラ猫。毛はオレンジ色。好物はチュール
+        - クロ:黒猫。毛は真っ黒。夜は窓辺のベッドで寝る
+  testimonies:
+    - id: TS-01
+      witness_id: P-01
+      title: トラの証言 〜ぼくは知らないにゃ〜
+      lines:
+        - id: TS-01-1
+          text: 昨日の夜は、ずっとソファのあたりでゴロゴロしてたにゃ
+        - id: TS-01-2
+          text: チュールの袋なんて、さわってもいないにゃ
+          lie_id: L-01
+        - id: TS-01-3
+          text: チュールを食べたのは、きっとクロだにゃ
+  learning_points:
+    - id: LP-01
+      knowledge: 証言の矛盾は、その証言の内容を直接くつがえす証拠品でつく
+      explanation: 「袋にさわってもいない」という証言をくつがえすには、トラが袋にさわった跡を示す証拠品が要る。空の袋についていたオレンジ色の毛は、オレンジ色の毛の猫=トラの毛なので、それにあたる。戸棚が開いていたこと(飼い主さんのメモ)は、事件が起きたことは示しても、誰がやったかまでは示さない。
+      sources:
+        - evidence_id: CE-01
+          title: 証拠品「空のチュールの袋」
+          url: ""
+          quote: 袋のはしにオレンジ色の毛が1本ついていた
+      misconception: 事件に関係のある証拠品なら、どの証言につきつけても崩れる
+  hidden_truth:
+    summary: 夜中の2時ごろ、トラは閉め忘れで少し開いていた戸棚からチュールを取り出し、ソファの下で食べた。そのとき袋にトラのオレンジ色の毛がついた。クロは窓辺のベッドで朝までぐっすり寝ていた。
+    timeline:
+      - id: T-01
+        order: 1
+        time: "21:00"
+        location: 台所
+        person_ids: [P-03]
+        description: 飼い主さんがチュールを戸棚の2段目にしまい、戸を閉め忘れた
+      - id: T-02
+        order: 2
+        time: "02:00"
+        location: 台所
+        person_ids: [P-01]
+        description: トラが戸棚からチュールを取り出し、ソファの下で食べた。袋にトラの毛がついた
+      - id: T-03
+        order: 3
+        time: "02:00"
+        location: 窓辺
+        person_ids: [P-02]
+        description: クロは窓辺のベッドで朝までぐっすり寝ていた
+      - id: T-04
+        order: 4
+        time: "07:00"
+        location: 台所
+        person_ids: [P-03]
+        description: 飼い主さんがチュールがないことに気づき、ソファの下で空の袋を見つけた
+    lies:
+      - id: L-01
+        witness_id: P-01
+        false_claim: チュールの袋にはさわっていない
+        truth_event_id: T-02
+        learning_point_ids: [LP-01]
+  witness_scripts:
+    - witness_id: P-01
+      persona: 語尾に「にゃ」をつける食いしん坊の茶トラ猫。都合が悪くなると、しっぽをぶんぶん振ってごまかす
+      hidden_facts:
+        - 夜中の2時ごろ、戸棚からチュールを取り出して、ソファの下で食べた
+      lie_ids: [L-01]
+      collapse_conditions:
+        - lie_id: L-01
+          evidence_id: CE-01
+          reaction: 袋についたオレンジ色の毛が自分の毛だと認め、食べてしまったことを謝る
+  contradictions:
+    - id: X-01
+      testimony_line_id: TS-01-2
+      evidence_id: CE-01
+      lie_id: L-01
+      learning_point_ids: [LP-01]
+      explanation: トラは「チュールの袋なんて、さわってもいない」と証言した。しかし空のチュールの袋には、オレンジ色の毛がついていた。この家でオレンジ色の毛の猫はトラだけ(ねこたちのプロフィール)なので、トラは袋にさわっている。
+      traps:
+        - evidence_id: CE-02
+          reasoning: 戸棚が開いていたのだから、チュールを取り出したのはトラだ
+          learning_point_id: LP-01
+          why_tempting: 戸棚が開いていたのは事件の手がかりだが、誰が開けたか・袋にさわったかまでは示していない
+  research:
+    topic: チュートリアル
+    created_at: "2026-09-28T00:00:00Z"
+    queries: []
+    evidence: []
+    skipped: []
+responses:
+  probe:TS-01-1: ソファのあたりはふかふかで最高なんだにゃ。朝までずーっとゴロゴロしてたにゃ。……ほんとだにゃ。
+  present:TS-01-1:CE-01: 空っぽの袋がソファの下に? ふ、ふーん。ぼくはソファの「上」でゴロゴロしてたから、下のことは知らないにゃ。
+  present:TS-01-1:CE-02: 戸棚が開いてたにゃ? ぼくはソファでゴロゴロしてたから、台所のことは知らないにゃ。
+  present:TS-01-1:CE-03: ぼくのプロフィールにゃ? 「好物はチュール」……好きなのと食べたのは、別の話にゃ!
+  probe:TS-01-2: 袋なんて見たこともないにゃ。チュールの袋がどんな形かも知らないにゃ……(しっぽがぶんぶん揺れている)
+  present:TS-01-2:CE-01: にゃ、にゃにゃっ!? オレンジ色の毛……それは……ぼくの毛にゃ……。ごめんなさいにゃ。夜中に戸棚が開いてて、いいにおいがして、つい……。
+  present:TS-01-2:CE-02: 戸棚が開いてたのは知ってるにゃ。でも、開いてたからって、ぼくが袋にさわった証拠にはならないにゃ!
+  present:TS-01-2:CE-03: ぼくのプロフィールがどうしたにゃ? 茶トラでかわいい、それだけのことにゃ。
+  probe:TS-01-3: クロはいつもお腹をすかせてるにゃ。夜中にごそごそしてたのは、きっとクロにゃ。
+  present:TS-01-3:CE-01: ほら、空っぽの袋にゃ。クロが食べたあとにゃ! クロの仕業にゃ!
+  present:TS-01-3:CE-02: 戸棚を開けたのもクロにゃ。クロは前足が器用なんだにゃ。
+  present:TS-01-3:CE-03: クロは真っ黒な猫にゃ。……それがどうかしたにゃ?

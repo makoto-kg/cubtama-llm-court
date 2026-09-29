@@ -2361,6 +2361,17 @@ export interface components {
             deviations: number;
             /** Unchecked */
             unchecked: number;
+            /**
+             * Source
+             * @default simulated
+             * @enum {string}
+             */
+            source: "simulated" | "scripted";
+            /**
+             * Tutorial
+             * @default false
+             */
+            tutorial: boolean;
         };
         /** OfflineMode */
         OfflineMode: {
@@ -2439,6 +2450,11 @@ export interface components {
              * Format: date-time
              */
             generated_at: string;
+            /**
+             * Tutorial
+             * @default false
+             */
+            tutorial: boolean;
         };
         /**
          * OfflineIndex

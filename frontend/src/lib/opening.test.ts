@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { start, toTrialView } from "./offline/engine";
 import { makePack } from "./offline/__fixtures__/pack";
-import { briefOverview, OPENING_CUT_IN, openingScript, shouldShowOpening } from "./opening";
+import { briefOverview, defendantOf, OPENING_CUT_IN, openingScript, shouldShowOpening } from "./opening";
 
 describe("briefOverview", () => {
   it("最初の 1 文だけを取り出す", () => {
@@ -37,6 +37,18 @@ describe("openingScript", () => {
     const view = toTrialView(start(makePack(), "seed"));
     const witness = view.case.people.find((p) => p.id === "P-02")!.name;
     expect(openingScript(view).at(-1)!.text).toContain(witness);
+  });
+
+  it("役割が「被告」の人物がいれば、概要の後で裁判長が被告を紹介する", () => {
+    const view = toTrialView(start(makePack(), "seed"));
+    const people = view.case.people.map((p, i) => (i === 0 ? { ...p, role: "被告(茶トラ猫)" } : p));
+    const script = openingScript({ ...view, case: { ...view.case, people } });
+    expect(script).toHaveLength(8);
+    expect(script[2]).toEqual({
+      speaker: "judge",
+      text: `被告は、${people[0].name}。${people[0].description}`,
+    });
+    expect(defendantOf(view)).toBeNull();
   });
 });
 

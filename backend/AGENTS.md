@@ -10,6 +10,7 @@ Python(FastAPI)によるゲームエンジン、LLM層、検索パイプライ�
 - 検索: SearXNG(`infra/docker-compose.yml` で起動)
 - 設定: `config/models.yaml`(プロバイダ・モデル・役割の割り当て)、`.env`(`.env.example` 参照)
   - 手元だけ割り当てを変えるときは git 管理外の `config/models.local.yaml` を作り、`LLM_COURT_MODELS_CONFIG_PATH=config/models.local.yaml` で指定する
+- 台本: `scenarios/`(オフラインパックにする、人が書いた事件と応答。チュートリアル用。ADR 0016)
 - 生成物: `.cache/`(取得済みページ)、`data/`(捜査結果、イベントストア `llm_court.db`、ディベートの JSONL・Markdown、評価結果)。どちらも git 管理外
 - 評価: `eval/specs/`(評価仕様)、`eval/evidence/`(比較に固定で使う捜査結果)
 
@@ -36,13 +37,14 @@ uv run llm-court case list               # 生成済みの事件の一覧
 uv run llm-court trial <case_id> --reveal  # 裁判型を CLI で遊ぶ(シナリオ検証用。q で中断、--resume で再開)
 uv run llm-court eval-trial <case_id...> -n 1  # 自動プレイヤーで証人の台本逸脱率を測り data/eval/ に出力
 uv run llm-court offline export <case_id...>   # 全行動の証人の応答を事前生成し、オフラインパックを frontend/public/offline/ に出力
+uv run llm-court offline scripted scenarios/tutorial-churu.yaml  # 人が書いた台本(事件と全応答)から LLM なしでパックを作る(チュートリアル。ADR 0016)
 uv run llm-court offline list            # 同梱のオフラインパックの一覧
 uv run llm-court serve                   # API サーバー(http://127.0.0.1:8000/api、ドキュメントは /docs)
 uv run llm-court openapi -o openapi.json # OpenAPI スキーマを出力(フロントエンドの型生成用)
 uv run pre-commit install                # pre-commit フック(ルートの .pre-commit-config.yaml)を有効化
 ```
 
-CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(Phase 2)、`debate`(Phase 3)、`eval`(Phase 4)、`serve` / `openapi`(Phase 5)、`play`(Phase 6 の追加。ADR 0010)、`case generate` / `case validate`(Phase 8)、`trial` / `eval-trial`(Phase 9)、`offline export` / `offline list`(Phase 10。ADR 0014)
+CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(Phase 2)、`debate`(Phase 3)、`eval`(Phase 4)、`serve` / `openapi`(Phase 5)、`play`(Phase 6 の追加。ADR 0010)、`case generate` / `case validate`(Phase 8)、`trial` / `eval-trial`(Phase 9)、`offline export` / `offline list`(Phase 10。ADR 0014)、`offline scripted`(Phase 10。ADR 0016)
 
 ## ディレクトリの責務(`src/llm_court/`)
 
@@ -55,7 +57,7 @@ CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(P
 | `agents/` | 各役割(論者・裁判長・分析官・証人・代弁者 等)。プロンプト組み立てと出力の解釈のみを担い、状態は直接変更しない |
 | `modes/` | ディベート型・裁判型のモード定義(ルーブリック、矛盾タイプ、勝利条件) |
 | `scenario/` | 裁判型の事件生成・整合性チェック・solver検証 |
-| `offline/` | 完全オフラインモードのパック(事前シミュレーション)。型は OpenAPI の components にも載せる |
+| `offline/` | 完全オフラインモードのパック(事前シミュレーション・台本)。型は OpenAPI の components にも載せる |
 | `eval/` | 評価ハーネスと指標計算 |
 | `api/` | FastAPI(REST + SSE)。Phase 5 以降 |
 | `cli/` | Typer + Rich のCLI |

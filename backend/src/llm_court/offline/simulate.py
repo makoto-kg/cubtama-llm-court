@@ -161,35 +161,15 @@ class OfflineSimulator:
 
         # 並列度は LLM 層のプロバイダごとのセマフォで制限される
         responses = list(await asyncio.gather(*(run(a) for a in actions)))
-        mode = self._mode
         models = {Role.WITNESS.value: self._llm.config.resolve(Role.WITNESS).model.model}
         if self._check:
             models[Role.JUDGE.value] = self._llm.config.resolve(Role.JUDGE).model.model
         return OfflinePack(
             case=case.public_view(),
             theme=case.theme,
-            answers=OfflineAnswers(
-                contradictions=[
-                    OfflineContradiction(
-                        id=c.id,
-                        testimony_line_id=c.testimony_line_id,
-                        evidence_id=c.evidence_id,
-                        traps=[
-                            OfflineTrap(evidence_id=t.evidence_id, why_tempting=t.why_tempting)
-                            for t in c.traps
-                        ],
-                    )
-                    for c in case.contradictions
-                ],
-                answer_index=case.question.answer_index,
-            ),
+            answers=pack_answers(case),
             explanation=build_explanation(case),
-            mode=OfflineMode(
-                penalty_gauge=mode.penalty_gauge,
-                penalties=mode.penalties,
-                distractor_options=mode.distractor_options,
-                probe_options=mode.probe_options,
-            ),
+            mode=pack_mode(self._mode),
             responses=responses,
             meta=OfflineMeta(
                 generated_at=datetime.now(UTC),
@@ -202,7 +182,36 @@ class OfflineSimulator:
         )
 
 
+def pack_answers(case: Case) -> OfflineAnswers:
+    """進行に必要な非公開の情報(矛盾・罠・問いの答え)。"""
+    return OfflineAnswers(
+        contradictions=[
+            OfflineContradiction(
+                id=c.id,
+                testimony_line_id=c.testimony_line_id,
+                evidence_id=c.evidence_id,
+                traps=[
+                    OfflineTrap(evidence_id=t.evidence_id, why_tempting=t.why_tempting)
+                    for t in c.traps
+                ],
+            )
+            for c in case.contradictions
+        ],
+        answer_index=case.question.answer_index,
+    )
+
+
+def pack_mode(mode: TrialMode) -> OfflineMode:
+    return OfflineMode(
+        penalty_gauge=mode.penalty_gauge,
+        penalties=mode.penalties,
+        distractor_options=mode.distractor_options,
+        probe_options=mode.probe_options,
+    )
+
+
 def build_index(packs: list[OfflinePack]) -> OfflineIndex:
+    """一覧はチュートリアルを先頭に、あとは生成の古い順。"""
     return OfflineIndex(
         cases=[
             OfflineIndexItem(
@@ -214,7 +223,8 @@ def build_index(packs: list[OfflinePack]) -> OfflineIndex:
                 contradictions=len(p.answers.contradictions),
                 responses=len(p.responses),
                 generated_at=p.meta.generated_at,
+                tutorial=p.meta.tutorial,
             )
-            for p in sorted(packs, key=lambda p: p.meta.generated_at)
+            for p in sorted(packs, key=lambda p: (not p.meta.tutorial, p.meta.generated_at))
         ]
     )

@@ -96,6 +96,8 @@ export function makePack(gauge = 5): OfflinePack {
       responses: responses.length,
       deviations: 0,
       unchecked: 0,
+      source: "simulated",
+      tutorial: false,
     },
   };
 }

@@ -1,6 +1,17 @@
 {
   "cases": [
     {
+      "id": "tutorial-churu",
+      "title": "消えたチュール事件",
+      "theme": "チュートリアル(証言の矛盾を見つけて、証拠品をつきつける)",
+      "overview": "ある家の台所で、猫用おやつのチュールが1本消えた。疑われているのは、食いしん坊の茶トラ猫・トラ。トラの証言と証拠品を見比べて、食い違うところに証拠品を「つきつける」のが、この裁判の目標だ。",
+      "testimonies": 1,
+      "contradictions": 1,
+      "responses": 12,
+      "generated_at": "2026-09-28T00:00:00Z",
+      "tutorial": true
+    },
+    {
       "id": "e9e5e5be3a",
       "title": "選択的週休三日制の真相",
       "theme": "週休3日制と労働法",
@@ -8,7 +19,8 @@
       "testimonies": 5,
       "contradictions": 3,
       "responses": 45,
-      "generated_at": "2026-09-27T03:31:42.617981Z"
+      "generated_at": "2026-09-27T03:31:42.617981Z",
+      "tutorial": false
     },
     {
       "id": "8014e2e08d",
@@ -18,7 +30,8 @@
       "testimonies": 3,
       "contradictions": 3,
       "responses": 25,
-      "generated_at": "2026-09-27T03:33:55.294937Z"
+      "generated_at": "2026-09-27T03:33:55.294937Z",
+      "tutorial": false
     }
   ]
 }

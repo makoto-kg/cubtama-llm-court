@@ -13,7 +13,7 @@ export function OfflineCaseList() {
       <div>
         <h2 className="text-lg font-bold">裁判(オフライン)</h2>
         <p className="text-xs opacity-70">
-          事前に LLM でシミュレーションした証人の応答で遊びます。バックエンドや LLM サーバーは不要です。
+          事前に用意した証人の応答(LLM で事前にシミュレーションしたもの、またはチュートリアルの台本)で遊びます。バックエンドや LLM サーバーは不要です。
         </p>
       </div>
       {error && <p className="text-sm text-red-300">事件の一覧を読み込めません({error})</p>}
@@ -26,7 +26,12 @@ export function OfflineCaseList() {
             <li key={c.id} className="rounded border border-[var(--court-wood-light)] p-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-bold">{c.title}</p>
+                  <p className="font-bold">
+                    {c.tutorial && (
+                      <span className="mr-2 rounded bg-emerald-700 px-2 py-0.5 text-xs">チュートリアル</span>
+                    )}
+                    {c.title}
+                  </p>
                   <p className="text-xs opacity-70">
                     テーマ: {c.theme} / 証言 {c.testimonies} / 矛盾 {c.contradictions}
                   </p>

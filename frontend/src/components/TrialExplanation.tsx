@@ -134,9 +134,14 @@ export function TrialExplanation({
                   {lp.sources.map((s, i) => (
                     <li key={i}>
                       出典:{" "}
-                      <a href={s.url} target="_blank" rel="noreferrer" className="underline">
-                        {s.title}
-                      </a>
+                      {s.url ? (
+                        <a href={s.url} target="_blank" rel="noreferrer" className="underline">
+                          {s.title}
+                        </a>
+                      ) : (
+                        // 台本の事件(チュートリアル)は、事件の証拠品を出典にする(URL なし)
+                        s.title
+                      )}
                       「{s.quote}」
                     </li>
                   ))}

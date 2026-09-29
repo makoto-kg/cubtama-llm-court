@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from pydantic import ValidationError
 from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
@@ -14,6 +15,7 @@ from llm_court.engine.recorder import BufferedRecorder
 from llm_court.llm import LLMClient, LLMError, PromptLoader
 from llm_court.modes import TRIAL_MODE
 from llm_court.offline.models import OfflinePack
+from llm_court.offline.scripted import ScriptedScenarioError, build_scripted_pack, load_scenario
 from llm_court.offline.simulate import OfflineSimulator, build_index
 from llm_court.scenario.store import CaseNotFoundError, CaseStore
 
@@ -122,6 +124,35 @@ def export(
             str(sum(r.attempts - 1 for r in pack.responses)),
         )
     console.print(table)
+    console.print(f"保存しました: {write_index(out_dir)}")
+
+
+@offline_app.command("scripted")
+def scripted(
+    paths: Annotated[
+        list[Path], typer.Argument(help="台本のシナリオファイル(YAML。複数可)", exists=True)
+    ],
+    out: Annotated[
+        Path | None,
+        typer.Option(
+            "--out", "-o", help="出力先(既定は offline_output_dir = frontend/public/offline)"
+        ),
+    ] = None,
+) -> None:
+    """人が書いた事件と応答(台本)から、LLM を使わずにオフラインパックを作る(チュートリアル用)。"""
+    out_dir = out or Settings().offline_output_dir
+    packs: list[OfflinePack] = []
+    for path in paths:
+        try:
+            packs.append(build_scripted_pack(load_scenario(path), TRIAL_MODE))
+        except (ScriptedScenarioError, ValidationError) as e:
+            console.print(f"[red]{escape(str(path))} を読めません:[/red]\n{escape(str(e))}")
+            raise typer.Exit(code=1) from e
+    (out_dir / CASES_DIR).mkdir(parents=True, exist_ok=True)
+    for pack in packs:
+        path = out_dir / CASES_DIR / f"{pack.case.id}.json"
+        path.write_text(pack.model_dump_json() + "\n", encoding="utf-8")
+        console.print(f"{escape(pack.case.title)}: 応答 {pack.meta.responses} 件 → {path}")
     console.print(f"保存しました: {write_index(out_dir)}")
 
 
