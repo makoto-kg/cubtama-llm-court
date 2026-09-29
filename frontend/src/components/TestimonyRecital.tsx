@@ -65,10 +65,10 @@ export function TestimonyRecital({
           </span>
         </DialogueBox>
       </CourtShot>
-      <div className="flex items-center justify-between text-xs opacity-70">
-        <span>証言を聞いています(クリック・Enter で次へ)</span>
-        <button onClick={onFinish} className="rounded border px-2 py-0.5">
-          スキップして尋問へ
+      <div className="flex items-center justify-between gap-2 text-xs opacity-70">
+        <span className="min-w-0 truncate">証言を聞いています(タップで次へ)</span>
+        <button onClick={onFinish} className="shrink-0 rounded border px-2 py-0.5">
+          尋問へ ▶
         </button>
       </div>
     </div>

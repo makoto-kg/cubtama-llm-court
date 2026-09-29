@@ -70,6 +70,27 @@ export function optionsByLine(
     .filter((g) => g.options.length > 0);
 }
 
+/**
+ * 尋問で最初に指す証言の行。前に指していた行が今の証言にあればそのまま、
+ * なければ選択肢のある最初の行(なければ先頭)。
+ */
+export function focusLine(
+  lineIds: string[],
+  groups: { lineId: string }[],
+  previous: string | null,
+): string | null {
+  if (previous && lineIds.includes(previous)) return previous;
+  return groups[0]?.lineId ?? lineIds[0] ?? null;
+}
+
+/** 証言の行を前後に送る(端から端へ回る)。 */
+export function stepLine(lineIds: string[], current: string | null, delta: number): string | null {
+  if (lineIds.length === 0) return null;
+  const i = current ? lineIds.indexOf(current) : -1;
+  const base = i < 0 ? 0 : i;
+  return lineIds[(base + delta + lineIds.length) % lineIds.length];
+}
+
 export type ObjectionTargetOption = { kind: ObjectionTarget; id: string; label: string };
 
 /** 「解説に異議あり」で指せる項目。罠の ID は「矛盾の ID/証拠品の ID」。 */

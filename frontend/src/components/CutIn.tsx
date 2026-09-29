@@ -25,8 +25,8 @@ export function CutInView({ cutIn, onDone }: { cutIn: CutInState; onDone: () => 
     >
       <div
         key={cutIn.key}
-        className={`cut-in border-y-4 border-[var(--court-accent)] bg-black/85 px-24 py-6 font-black tracking-widest text-[var(--court-accent)] ${
-          cutIn.strong ? "cut-in-strong text-7xl" : "text-6xl"
+        className={`cut-in whitespace-nowrap border-y-4 border-[var(--court-accent)] bg-black/85 px-8 py-4 font-black tracking-widest text-[var(--court-accent)] sm:px-24 sm:py-6 ${
+          cutIn.strong ? "cut-in-strong text-5xl sm:text-7xl" : "text-4xl sm:text-6xl"
         }`}
       >
         {cutIn.text}

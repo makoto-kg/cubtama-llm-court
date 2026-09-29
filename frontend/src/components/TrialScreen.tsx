@@ -2,96 +2,36 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import type { LLMCallInfo, ObjectionTarget, TrialOption, TrialView } from "@/api/client";
+import type { LLMCallInfo, ObjectionTarget, TrialView } from "@/api/client";
 import { useTrialSession } from "@/hooks/useTrialSession";
 import { llmCalls } from "@/lib/events";
 import { STRENGTH_LABELS } from "@/lib/labels";
 import { shouldShowOpening } from "@/lib/opening";
 import {
   currentTestimony,
+  focusLine,
   optionsByLine,
   personName,
+  stepLine,
   testimonyExamined,
   type WitnessStream,
 } from "@/lib/trial";
 import { useTrialStore } from "@/store/trial";
 
+import { CourtRecordDrawer, ExchangeLog } from "./CourtRecord";
 import { CourtShot, DialogueBox } from "./CourtScene";
 import { CutInView } from "./CutIn";
+import { EvidenceOverlay } from "./EvidenceOverlay";
+import { ExaminationPanel } from "./ExaminationPanel";
+import { GameShell } from "./GameShell";
 import { OpeningSequence } from "./OpeningSequence";
 import { PenaltyGauge } from "./PenaltyGauge";
 import { TestimonyRecital } from "./TestimonyRecital";
 import { ThinkingLog } from "./ThinkingLog";
 import { TrialExplanation } from "./TrialExplanation";
 import { Typewriter } from "./Typewriter";
-
-function CaseEvidenceDrawer({ view, open, onClose }: { view: TrialView; open: boolean; onClose: () => void }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/50" onClick={onClose}>
-      <aside
-        className="h-full w-full max-w-lg overflow-y-auto bg-[#241a12] p-4 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold">証拠品ファイル({view.case.evidence.length})</h2>
-          <button onClick={onClose} className="rounded border px-2 text-sm">
-            閉じる
-          </button>
-        </div>
-        <ul className="space-y-3">
-          {view.case.evidence.map((e) => (
-            <li key={e.id} className="rounded border border-[var(--court-wood-light)] p-3">
-              <p className="font-bold">{e.name}</p>
-              <p className="text-sm opacity-80">{e.description}</p>
-              <ul className="mt-1 list-disc pl-5 text-sm">
-                {e.details.map((d, i) => (
-                  <li key={i}>{d}</li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
-        <h2 className="mb-2 mt-5 text-lg font-bold">登場人物</h2>
-        <ul className="space-y-2 text-sm">
-          {view.case.people.map((p) => (
-            <li key={p.id}>
-              <span className="font-bold">{p.name}</span>({p.role}): {p.description}
-            </li>
-          ))}
-        </ul>
-      </aside>
-    </div>
-  );
-}
-
-function OptionButton({
-  option,
-  evidenceName,
-  disabled,
-  onChoose,
-}: {
-  option: TrialOption;
-  evidenceName: string | null;
-  disabled: boolean;
-  onChoose: (id: string) => void;
-}) {
-  const present = option.kind === "present";
-  return (
-    <button
-      disabled={disabled}
-      onClick={() => onChoose(option.id)}
-      className={`rounded border-l-4 bg-black/30 px-3 py-1 text-left text-sm hover:bg-white/10 disabled:opacity-50 ${
-        present ? "border-red-400/70" : "border-sky-400/70"
-      }`}
-    >
-      <span className="mr-2 rounded bg-white/10 px-1 text-xs">{present ? "つきつける" : "ゆさぶる"}</span>
-      {present ? evidenceName : "詳しく説明させる"}
-    </button>
-  );
-}
 
 /** 裁判型の画面。証言 → 尋問(選択肢)→ 証人の応答 → 最後の問い → 解説。 */
 export function TrialScreen() {
@@ -129,6 +69,11 @@ export function TrialScreen() {
       onChoose={(id) => void actions.choose(id)}
       onAnswer={(i) => void actions.answer(i)}
       onObject={actions.object}
+      toolbar={
+        <Link href="/" className="rounded border px-2 py-0.5">
+          タイトルへ
+        </Link>
+      }
     />
   );
 }
@@ -147,9 +92,14 @@ export type TrialBoardProps = {
   onObject: (kind: ObjectionTarget, id: string, comment: string) => Promise<void>;
   /** 閉廷前に思考ログの代わりに出す注記。 */
   logNotice?: string;
+  /** 画面上端のバーに並べる操作(やり直す・一覧へ など)。 */
+  toolbar?: ReactNode;
 };
 
-/** 裁判の画面の表示(オンライン・オフライン共通)。データの取得と操作は props で受け取る。 */
+/**
+ * 裁判の画面の表示(オンライン・オフライン共通)。データの取得と操作は props で受け取る。
+ * スマホの縦画面では、キャラクターと台詞を画面に固定し、下の操作の欄だけを動かす(`GameShell`)。
+ */
 export function TrialBoard({
   view,
   streaming,
@@ -163,17 +113,25 @@ export function TrialBoard({
   onAnswer,
   onObject,
   logNotice = "書記官の記録(思考ログ)は、台本と真相を含むため閉廷後に公開します。",
+  toolbar,
 }: TrialBoardProps) {
-  const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const [recordOpen, setRecordOpen] = useState(false);
+  // 証拠品ファイル(法廷の画面に重ねる)。present は「つきつける」から開いたとき
+  const [evidence, setEvidence] = useState<{ present: boolean } | null>(null);
   // 開廷の場面は、尋問が始まる前に開いたときだけ見せる(途中から再開した裁判では出さない)
   const [openingDone, setOpeningDone] = useState(() => !shouldShowOpening(view));
   // 読み上げを終えた証言と、読み上げを始めてよい証言(尋問の途中から再開した証言は読み上げない)
   const [heardId, setHeardId] = useState(() => (testimonyExamined(view) ? view.testimony_id : null));
   const [playId, setPlayId] = useState<string | null>(null);
+  // 尋問で指している証言の行と、行を指し直したときの応答の数(それより後の応答だけを台詞の枠に出す)
+  const [lineChoice, setLineChoice] = useState<string | null>(null);
+  const [lineAt, setLineAt] = useState<number | null>(null);
+  // 最後の問いに移る前に、証言が崩れた応答を読んでもらう(タップで問いへ)
+  const [questionReady, setQuestionReady] = useState(false);
   const finished = view.status === "finished" || view.status === "aborted";
   const testimony = currentTestimony(view);
   // 証言が始まったら、まず証人に一通り証言させてから尋問の操作を出す。
-  // 証人の応答・カットインの最中は待ち、前の応答が画面にあればクリックで次の証言へ進める
+  // 証人の応答・カットインの最中は待ち、前の応答が画面にあればタップで次の証言へ進める
   const recitalNeeded = Boolean(testimony) && view.stage !== "answering" && heardId !== testimony?.id;
   const quiet = !streaming && !cutIn;
   const recitalPlaying =
@@ -182,43 +140,61 @@ export function TrialBoard({
   const last = view.exchanges.at(-1) ?? null;
   const witnessId = streaming?.witnessId ?? testimony?.witness_id ?? last?.witness_id ?? null;
   const witnessName = witnessId ? personName(view, witnessId) : "証人";
-  // 次の証言(別の証人)に移ったら、前の証人の応答は出さない
-  const lastForWitness = last && last.witness_id === witnessId ? last : null;
-  const evidenceNames = new Map(view.case.evidence.map((e) => [e.id, e.name]));
   const solved = new Set(view.solved_line_ids);
-  const chosenLine = last?.option.line_id;
   const lineIds = testimony?.lines.map((l) => l.id) ?? [];
   const groups = optionsByLine(lineIds, view.pending_options);
-  const speaking =
-    streaming ?? (lastForWitness ? { witnessId: lastForWitness.witness_id, text: lastForWitness.text } : null);
+  const lineId = focusLine(lineIds, groups, lineChoice);
+  const line = testimony?.lines.find((l) => l.id === lineId) ?? null;
+  // 台詞の枠: 証人の応答(ストリーミング中、または指し直す前の、この証言への最新の応答)か、指している証言の行
+  const lastInTestimony = last && lineIds.includes(last.option.line_id) ? last : null;
+  const reply =
+    streaming ??
+    (lastInTestimony && (lineAt === null || lineAt < view.exchanges.length)
+      ? { witnessId: lastInTestimony.witness_id, text: lastInTestimony.text }
+      : null);
   const textKey = streaming ? `s-${view.exchanges.length}` : `e-${view.exchanges.length}`;
+  const pointLine = (id: string | null) => {
+    if (!id) return;
+    setLineChoice(id);
+    setLineAt(view.exchanges.length);
+  };
+
+  const top = (
+    <TopBar
+      view={view}
+      toolbar={toolbar}
+      onEvidence={() => setEvidence({ present: false })}
+      onRecord={() => setRecordOpen(true)}
+    />
+  );
+  const presentOptions = view.pending_options.filter((o) => o.line_id === lineId && o.kind === "present");
+  const drawer = (
+    <>
+      <CourtRecordDrawer view={view} open={recordOpen} onClose={() => setRecordOpen(false)} logNotice={logNotice} />
+      <EvidenceOverlay
+        view={view}
+        open={evidence !== null}
+        onClose={() => setEvidence(null)}
+        present={
+          evidence?.present && line && !finished
+            ? { lineText: line.text, options: presentOptions, onPresent: onChoose }
+            : null
+        }
+      />
+    </>
+  );
 
   if (!openingDone && !finished) {
     return <OpeningSequence view={view} onFinish={() => setOpeningDone(true)} />;
   }
 
-  return (
-    <div className="space-y-4">
-      <CutInView cutIn={cutIn} onDone={onClearCutIn} />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-xs opacity-70">事件</p>
-          <h1 className="text-xl font-bold">{view.case.title}</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <PenaltyGauge remaining={view.penalty_gauge} max={view.penalty_gauge_max} />
-          <span className="text-sm">
-            矛盾 {view.solved_count}/{view.contradiction_count}
-          </span>
-          <button onClick={() => setEvidenceOpen(true)} className="rounded border px-3 py-1 text-sm">
-            証拠品ファイル({view.case.evidence.length})
-          </button>
-        </div>
-      </div>
-      {error && <p className="rounded bg-red-900/40 p-2 text-sm">{error}</p>}
-      {view.aborted && <p className="rounded bg-red-900/40 p-2 text-sm">中断: {view.aborted}</p>}
-
-      {finished ? (
+  if (finished) {
+    return (
+      <div className="space-y-4">
+        <CutInView cutIn={cutIn} onDone={onClearCutIn} />
+        {top}
+        {error && <p className="rounded bg-red-900/40 p-2 text-sm">{error}</p>}
+        {view.aborted && <p className="rounded bg-red-900/40 p-2 text-sm">中断: {view.aborted}</p>}
         <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
           <TrialExplanation view={view} onObject={onObject} />
           <div className="space-y-4">
@@ -226,170 +202,207 @@ export function TrialBoard({
             <ThinkingLog calls={calls} />
           </div>
         </div>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
-          <div className="space-y-4">
+        {drawer}
+      </div>
+    );
+  }
+
+  let stage: ReactNode;
+  let panel: ReactNode = null;
+  if (recitalPlaying && testimony) {
+    stage = (
+      <TestimonyRecital key={testimony.id} view={view} testimony={testimony} onFinish={() => setHeardId(testimony.id)} />
+    );
+  } else if (recitalPending && last && testimony) {
+    stage = (
+      <CourtShot kind="witness" alt={personName(view, last.witness_id)}>
+        <DialogueBox name={personName(view, last.witness_id)} waiting onClick={() => setPlayId(testimony.id)}>
+          <p className="whitespace-pre-wrap">{last.text}</p>
+        </DialogueBox>
+      </CourtShot>
+    );
+    panel = (
+      <button
+        onClick={() => setPlayId(testimony.id)}
+        className="w-full rounded-lg border-2 border-[var(--court-accent)] bg-black/40 p-3 font-bold hover:bg-white/10"
+      >
+        次の証言を聞く ▶
+      </button>
+    );
+  } else if (view.stage === "answering" && !questionReady && last && !streaming) {
+    stage = (
+      <CourtShot kind="witness" alt={personName(view, last.witness_id)}>
+        <DialogueBox name={personName(view, last.witness_id)} waiting onClick={() => setQuestionReady(true)}>
+          <p className="whitespace-pre-wrap">{last.text}</p>
+        </DialogueBox>
+      </CourtShot>
+    );
+    panel = (
+      <button
+        onClick={() => setQuestionReady(true)}
+        className="w-full rounded-lg border-2 border-[var(--court-accent)] bg-black/40 p-3 font-bold hover:bg-white/10"
+      >
+        最後の問いへ ▶
+      </button>
+    );
+  } else if (view.stage === "answering" && !streaming) {
+    stage = (
+      <CourtShot kind="judge" alt="裁判長">
+        <DialogueBox name="裁判長">
+          <p>
+            すべての矛盾が明らかになりました。最後に問います。
+            <br />
+            <span className="font-bold">{view.case.question.text}</span>
+          </p>
+        </DialogueBox>
+      </CourtShot>
+    );
+    panel = (
+      <div className="grid gap-2 md:grid-cols-2">
+        {view.case.question.options.map((option, i) => (
+          <button
+            key={i}
+            onClick={() => onAnswer(i)}
+            disabled={running}
+            className="rounded-lg border border-[var(--court-accent)]/60 bg-black/40 p-3 text-left hover:bg-white/10 disabled:opacity-50"
+          >
+            {i + 1}. {option}
+          </button>
+        ))}
+      </div>
+    );
+  } else {
+    const showLine = !reply && line;
+    stage = (
+      <CourtShot kind="witness" alt={witnessName} speaking={Boolean(streaming)}>
+        <DialogueBox
+          name={witnessName}
+          waiting={!streaming && !running}
+          onClick={
+            streaming || running
+              ? undefined
+              : () => pointLine(reply ? lineId : stepLine(lineIds, lineId, 1))
+          }
+        >
+          {reply ? (
+            <>
+              <p>
+                <Typewriter text={reply.text} resetKey={textKey} active={Boolean(streaming)} />
+              </p>
+              {progress && running && !streaming && (
+                <p className="mt-1 animate-pulse text-xs opacity-70">{progress}</p>
+              )}
+              {lastInTestimony &&
+                !streaming &&
+                lastInTestimony.option.strength &&
+                lastInTestimony.option.strength !== "strong" && (
+                  <p className="mt-1 text-xs text-amber-300">
+                    つきつけた組: {STRENGTH_LABELS[lastInTestimony.option.strength]}
+                    {lastInTestimony.penalty > 0 && `(ペナルティ −${lastInTestimony.penalty})`}
+                  </p>
+                )}
+            </>
+          ) : showLine ? (
+            <>
+              <p className={`testimony-text ${solved.has(showLine.id) ? "line-through opacity-70" : ""}`}>
+                「{showLine.text}」
+              </p>
+              <span className="absolute -top-6 right-1 rounded bg-black/60 px-2 text-xs">
+                {lineIds.indexOf(showLine.id) + 1}/{lineIds.length}
+              </span>
+            </>
+          ) : (
+            <p>……(証言台に立っている)</p>
+          )}
+        </DialogueBox>
+      </CourtShot>
+    );
+    panel = testimony && (
+      <ExaminationPanel
+        key={lineId ?? ""}
+        testimony={testimony}
+        lineId={lineId}
+        options={view.pending_options.filter((o) => o.line_id === lineId)}
+        solved={solved}
+        running={running || Boolean(streaming)}
+        onLine={pointLine}
+        onChoose={onChoose}
+        onPresent={() => setEvidence({ present: true })}
+        onReplay={() => {
+          setHeardId(null);
+          setPlayId(testimony.id);
+        }}
+      />
+    );
+  }
+
+  return (
+    <>
+      <CutInView cutIn={cutIn} onDone={onClearCutIn} />
+      <GameShell
+        top={
+          <>
+            {top}
+            {error && <p className="mt-1 rounded bg-red-900/40 p-2 text-xs">{error}</p>}
+            {view.aborted && <p className="mt-1 rounded bg-red-900/40 p-2 text-xs">中断: {view.aborted}</p>}
+          </>
+        }
+        stage={stage}
+        panel={panel}
+        side={
+          <>
             <details className="rounded bg-black/20 p-2 text-sm" open={view.exchanges.length === 0}>
               <summary className="cursor-pointer font-bold">事件の概要</summary>
               <p className="mt-1">{view.case.overview}</p>
             </details>
-
-            {recitalPlaying && testimony ? (
-              <TestimonyRecital
-                key={testimony.id}
-                view={view}
-                testimony={testimony}
-                onFinish={() => setHeardId(testimony.id)}
-              />
-            ) : recitalPending && last && testimony ? (
-              <CourtShot kind="witness" alt={personName(view, last.witness_id)}>
-                <DialogueBox name={personName(view, last.witness_id)} waiting onClick={() => setPlayId(testimony.id)}>
-                  <p className="whitespace-pre-wrap">{last.text}</p>
-                </DialogueBox>
-              </CourtShot>
-            ) : (
-              <CourtShot kind="witness" alt={witnessName} speaking={Boolean(streaming)}>
-                <DialogueBox name={witnessName}>
-                  <p>
-                    {speaking ? (
-                      <Typewriter text={speaking.text} resetKey={textKey} active={Boolean(streaming)} />
-                    ) : (
-                      "……(証言台に立っている)"
-                    )}
-                  </p>
-                  {progress && running && !streaming && (
-                    <p className="mt-2 animate-pulse text-xs opacity-70">{progress}</p>
-                  )}
-                  {lastForWitness &&
-                    !streaming &&
-                    lastForWitness.option.strength &&
-                    lastForWitness.option.strength !== "strong" && (
-                      <p className="mt-2 text-xs text-amber-300">
-                        つきつけた組: {STRENGTH_LABELS[lastForWitness.option.strength]}
-                        {lastForWitness.penalty > 0 && `(ペナルティ −${lastForWitness.penalty})`}
-                      </p>
-                    )}
-                </DialogueBox>
-              </CourtShot>
-            )}
-
-            {view.stage === "answering" ? (
-              <div className="space-y-2 rounded-lg border-2 border-[var(--court-accent)] bg-black/40 p-4">
-                <p className="font-bold">すべての矛盾を解きました。最後の問いに答えてください。</p>
-                <p className="text-lg">{view.case.question.text}</p>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {view.case.question.options.map((option, i) => (
-                    <button
-                      key={i}
-                      onClick={() => onAnswer(i)}
-                      disabled={running}
-                      className="rounded bg-black/40 p-3 text-left hover:bg-white/10 disabled:opacity-50"
-                    >
-                      {i + 1}. {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : recitalPending && testimony ? (
-              <button
-                onClick={() => setPlayId(testimony.id)}
-                className="w-full rounded-lg border-2 border-[var(--court-accent)] bg-black/40 p-3 font-bold hover:bg-white/10"
-              >
-                次の証言を聞く ▶
-              </button>
-            ) : (
-              testimony &&
-              !recitalNeeded && (
-                <section className="space-y-2 rounded-lg border border-[var(--court-wood-light)] p-3">
-                  <h2 className="font-bold">
-                    {testimony.title}
-                    <span className="ml-2 text-sm font-normal opacity-70">
-                      証人: {personName(view, testimony.witness_id)}
-                    </span>
-                  </h2>
-                  {!running && (
-                    <button
-                      onClick={() => {
-                        setHeardId(null);
-                        setPlayId(testimony.id);
-                      }}
-                      className="rounded border px-2 py-0.5 text-xs"
-                    >
-                      証言をもう一度聞く
-                    </button>
-                  )}
-                  {running && <p className="text-sm opacity-70">証人が答えています…</p>}
-                  <ol className="space-y-2">
-                    {testimony.lines.map((line) => {
-                      const group = groups.find((g) => g.lineId === line.id);
-                      return (
-                        <li
-                          key={line.id}
-                          className={`rounded p-2 ${line.id === chosenLine ? "bg-white/10" : "bg-black/20"}`}
-                        >
-                          <p className={solved.has(line.id) ? "text-emerald-300 line-through" : ""}>
-                            {solved.has(line.id) ? "✓ " : "「"}
-                            {line.text}
-                            {solved.has(line.id) ? "" : "」"}
-                          </p>
-                          {group && !running && (
-                            <div className="mt-1 flex flex-wrap gap-2">
-                              {group.options.map((o) => (
-                                <OptionButton
-                                  key={o.id}
-                                  option={o}
-                                  evidenceName={o.evidence_id ? (evidenceNames.get(o.evidence_id) ?? o.evidence_id) : null}
-                                  disabled={running}
-                                  onChoose={onChoose}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ol>
-                </section>
-              )
-            )}
-          </div>
-          <div className="space-y-4">
             <ExchangeLog view={view} reveal={false} />
-            <p className="rounded bg-black/20 p-2 text-xs opacity-70">
-              {logNotice}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <CaseEvidenceDrawer view={view} open={evidenceOpen} onClose={() => setEvidenceOpen(false)} />
-    </div>
+            <p className="rounded bg-black/20 p-2 text-xs opacity-70">{logNotice}</p>
+          </>
+        }
+      />
+      {drawer}
+    </>
   );
 }
 
-/** 尋問の記録。閉廷後は台本からの逸脱の判定も表示する。 */
-function ExchangeLog({ view, reveal }: { view: TrialView; reveal: boolean }) {
+/** 画面上端のバー(事件名・操作 / ゲージ・矛盾の数・証拠品・記録)。スマホでも 2 行に収める。 */
+function TopBar({
+  view,
+  toolbar,
+  onEvidence,
+  onRecord,
+}: {
+  view: TrialView;
+  toolbar?: ReactNode;
+  onEvidence: () => void;
+  onRecord: () => void;
+}) {
   return (
-    <section className="rounded-lg border border-[var(--court-wood-light)] bg-black/30 p-3">
-      <h2 className="mb-2 font-bold">尋問の記録</h2>
-      {view.exchanges.length === 0 && <p className="text-sm opacity-70">まだありません</p>}
-      <ul className="max-h-[28rem] space-y-2 overflow-y-auto text-sm">
-        {[...view.exchanges].reverse().map((x) => (
-          <li key={x.option.id} className="rounded bg-black/20 p-2">
-            <p className="text-xs opacity-80">
-              {x.option.label}
-              {x.option.strength && ` — ${STRENGTH_LABELS[x.option.strength]}`}
-              {x.solved && " — 証言が崩れた"}
-            </p>
-            <p>{personName(view, x.witness_id)}: {x.text}</p>
-            {reveal && x.check && (
-              <p className={`mt-1 text-xs ${x.check.deviations.length ? "text-red-300" : "text-emerald-300"}`}>
-                台本の判定: {x.check.deviations.length ? x.check.deviations.join(", ") : "逸脱なし"} — {x.check.reason}
-              </p>
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="min-w-0 truncate text-sm font-bold lg:text-xl">{view.case.title}</h1>
+        {toolbar && <div className="flex shrink-0 items-center gap-1.5 text-xs">{toolbar}</div>}
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <PenaltyGauge remaining={view.penalty_gauge} max={view.penalty_gauge_max} />
+        <span className="text-xs tabular-nums lg:text-sm">
+          矛盾 {view.solved_count}/{view.contradiction_count}
+        </span>
+        <div className="flex gap-1.5">
+          <button
+            onClick={onEvidence}
+            className="rounded bg-[var(--court-accent)] px-2.5 py-1 text-xs font-bold text-black lg:text-sm"
+          >
+            証拠品({view.case.evidence.length})
+          </button>
+          <button
+            onClick={onRecord}
+            className="rounded border border-[var(--court-accent)] px-2.5 py-1 text-xs font-bold text-[var(--court-accent)] lg:text-sm"
+          >
+            記録
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

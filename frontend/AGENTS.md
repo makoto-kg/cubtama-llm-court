@@ -43,7 +43,7 @@ pnpm gen:api         # backend の OpenAPI から API 型を生成(src/api/schem
 ### 完全オフラインモード(ADR 0014)
 
 - `/offline/` 以下の画面は API を一切呼ばない。同梱のパック(`public/offline/index.json`・`public/offline/cases/<id>.json`)を `fetch` で読む
-- パックは `llm-court offline export` で作る。手で編集しない
+- パックは `llm-court offline export`(LLM で事前生成)か `llm-court offline scripted`(`backend/scenarios/` の台本。チュートリアル用。ADR 0016)で作る。手で編集しない
 - 進行ロジックは `src/lib/offline/` に TypeScript で移植してある(backend の `agents/trial_analyst.py`・`engine/trial.py` と同じ規則)。規則を変えるときは両方を直す
 - 状態の真実は `localStorage` の行動の列。状態は `replay` で作り直す
 - `NEXT_PUBLIC_OFFLINE_ONLY=1 pnpm build` で、API のない配布用の SPA になる(タイトルがオフラインの一覧になる)
@@ -58,6 +58,7 @@ pnpm gen:api         # backend の OpenAPI から API 型を生成(src/api/schem
 ### UI・演出
 
 - キャラクター、立ち絵、カットイン、UIはすべてオリジナルデザイン。既存作品の模倣をしない
+- 裁判のプレイ画面はスマホの縦画面を前提にする。キャラクターと台詞は画面に固定し、スクロールは操作の欄だけにする(`GameShell`。ADR 0015)
 - 素材のパスは `src/assets/manifest.ts` の一箇所で管理する(現在はオリジナルの仮素材の SVG)
 - 「思考ログ」パネル(LLMの入力・生出力・パース結果・トークン数・レイテンシ)はゲームの機能として実装する。開発者用の隠し機能にしない
 

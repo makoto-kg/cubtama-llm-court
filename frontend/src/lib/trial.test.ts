@@ -7,7 +7,9 @@ import {
   COLLAPSE_CUT_IN,
   cutInForTrialEvent,
   objectionTargets,
+  focusLine,
   optionsByLine,
+  stepLine,
   testimonyExamined,
 } from "./trial";
 import { makePack } from "./offline/__fixtures__/pack";
@@ -114,5 +116,24 @@ describe("testimonyExamined", () => {
     state = apply(state, { kind: "choose", optionId: strong.id });
     expect(state.testimonyId).toBe("TS-02");
     expect(testimonyExamined(toTrialView(state))).toBe(false);
+  });
+});
+
+describe("focusLine / stepLine", () => {
+  const lines = ["L1", "L2", "L3"];
+
+  it("前の行が今の証言にあれば保ち、なければ選択肢のある最初の行を指す", () => {
+    expect(focusLine(lines, [{ lineId: "L2" }], "L3")).toBe("L3");
+    expect(focusLine(lines, [{ lineId: "L2" }], "X9")).toBe("L2");
+    expect(focusLine(lines, [], null)).toBe("L1");
+    expect(focusLine([], [], null)).toBeNull();
+  });
+
+  it("前後に送り、端では反対の端へ回る", () => {
+    expect(stepLine(lines, "L1", 1)).toBe("L2");
+    expect(stepLine(lines, "L3", 1)).toBe("L1");
+    expect(stepLine(lines, "L1", -1)).toBe("L3");
+    expect(stepLine(lines, null, 1)).toBe("L2");
+    expect(stepLine([], "L1", 1)).toBeNull();
   });
 });

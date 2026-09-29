@@ -9,6 +9,7 @@ import { OPENING_CUT_IN, openingScript } from "@/lib/opening";
 
 import { CourtShot, DialogueBox } from "./CourtScene";
 import { CutInView } from "./CutIn";
+import { GameShell } from "./GameShell";
 
 /**
  * 開廷の場面。裁判長の挨拶と事件の超概要 → 原告側・被告側の宣言 → 審理開始。
@@ -42,15 +43,7 @@ export function OpeningSequence({ view, onFinish }: { view: TrialView; onFinish:
   if (!line) return null;
   const name = line.speaker === "plaintiff" ? `${SPEAKER_NAMES.plaintiff}(あなた)` : SPEAKER_NAMES[line.speaker];
   const showText = !holding || ending;
-  return (
-    <div className="space-y-2">
-      <CutInView cutIn={cutIn} onDone={clearCutIn} />
-      <div className="flex items-center justify-between text-xs opacity-80">
-        <span>{view.case.title} — 開廷</span>
-        <button onClick={onFinish} className="rounded border px-2 py-0.5">
-          スキップ
-        </button>
-      </div>
+  const stage = (
       <CourtShot kind={line.speaker} alt={name} speaking={dialogue.typing} shake={Boolean(line.gavel) && showText}>
         {line.gavel && showText && (
           <span key={dialogue.index} className="gavel-sound absolute right-[8%] top-[8%] text-4xl font-black">
@@ -63,7 +56,22 @@ export function OpeningSequence({ view, onFinish }: { view: TrialView; onFinish:
           </span>
         </DialogueBox>
       </CourtShot>
-      <p className="text-center text-xs opacity-60">クリック・Enter で次へ</p>
-    </div>
+  );
+  return (
+    <>
+      <CutInView cutIn={cutIn} onDone={clearCutIn} />
+      <GameShell
+        top={
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="min-w-0 truncate opacity-80">{view.case.title} — 開廷</span>
+            <button onClick={onFinish} className="shrink-0 rounded border px-3 py-1">
+              スキップ
+            </button>
+          </div>
+        }
+        stage={stage}
+        panel={<p className="text-center text-xs opacity-60">タップ・Enter で次へ</p>}
+      />
+    </>
   );
 }

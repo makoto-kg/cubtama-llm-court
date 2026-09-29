@@ -217,3 +217,19 @@ body {
 .testimony-text {
   color: #a8e6b8;
 }
+
+/* 証拠品ファイル(法廷の画面に重ねる) */
+@keyframes evidence-sheet-in {
+  0% {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.evidence-sheet {
+  animation: evidence-sheet-in 0.18s ease-out;
+}

@@ -38,31 +38,37 @@ export function OfflineTrialScreen() {
 
   const view = toTrialView(state);
   const finished = view.status === "finished";
+  const scripted = state.pack.meta.source === "scripted";
+  const toolbar = (
+    <>
+      {finished && view.objections.length > 0 && (
+        <button onClick={() => downloadObjections(caseId, view.objections)} className="rounded border px-2 py-0.5">
+          異議を書き出す
+        </button>
+      )}
+      <button
+        onClick={() => {
+          if (finished || window.confirm("最初からやり直しますか?(進行は消えます)")) restart();
+        }}
+        className="rounded border px-2 py-0.5"
+      >
+        やり直す
+      </button>
+      <Link href="/offline/" className="rounded border px-2 py-0.5">
+        一覧へ
+      </Link>
+    </>
+  );
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-        <span className="rounded bg-emerald-900/50 px-2 py-1">オフライン(事前シミュレーションの応答)</span>
-        <div className="flex gap-2">
-          {finished && view.objections.length > 0 && (
-            <button onClick={() => downloadObjections(caseId, view.objections)} className="rounded border px-2 py-1">
-              異議を書き出す(JSON)
-            </button>
-          )}
-          <button
-            onClick={() => {
-              if (finished || window.confirm("最初からやり直しますか?(進行は消えます)")) restart();
-            }}
-            className="rounded border px-2 py-1"
-          >
-            最初からやり直す
-          </button>
-          <Link href="/offline/" className="rounded border px-2 py-1">
-            一覧へ
-          </Link>
-        </div>
-      </div>
+      <p className="hidden text-xs lg:block">
+        <span className="rounded bg-emerald-900/50 px-2 py-1">
+          {scripted ? "オフライン(台本の応答)" : "オフライン(事前シミュレーションの応答)"}
+        </span>
+      </p>
       <TrialBoard
         key={state.seed}
+        toolbar={toolbar}
         view={view}
         streaming={streaming}
         progress={null}
@@ -74,7 +80,11 @@ export function OfflineTrialScreen() {
         onChoose={choose}
         onAnswer={answer}
         onObject={async (kind, id, comment) => object(kind, id, comment)}
-        logNotice="書記官の記録(思考ログ)は、台本と真相を含むため閉廷後に公開します。この画面の応答は事前に生成したものです。"
+        logNotice={
+          scripted
+            ? "この事件の応答は人が書いた台本です(LLM は使っていません)。"
+            : "書記官の記録(思考ログ)は、台本と真相を含むため閉廷後に公開します。この画面の応答は事前に生成したものです。"
+        }
       />
     </div>
   );

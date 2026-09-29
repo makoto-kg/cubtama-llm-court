@@ -49,7 +49,7 @@ export function CourtShot({
 }) {
   const figure = FIGURE[kind];
   return (
-    <div className={`relative aspect-[4/5] max-h-[32rem] sm:aspect-[16/10] w-full overflow-hidden rounded-lg ${shake ? "gavel-shake" : ""}`}>
+    <div className={`relative h-[46svh] max-h-[30rem] min-h-64 w-full sm:aspect-[16/10] sm:h-auto sm:max-h-[32rem] overflow-hidden rounded-lg ${shake ? "gavel-shake" : ""}`}>
       <div key={kind} className={`shot-in absolute inset-0 ${WALL[kind]}`}>
         <div className={`absolute inset-x-0 bottom-[30%] flex ${figure.align}`}>
           <Image
@@ -57,7 +57,7 @@ export function CourtShot({
             alt={alt}
             width={figure.width}
             height={figure.height}
-            className={`h-auto w-[45%] max-w-64 sm:w-[30%] ${kind === "defendant" ? "-scale-x-100" : ""} ${
+            className={`h-auto w-[50%] max-w-64 sm:w-[30%] ${kind === "defendant" ? "-scale-x-100" : ""} ${
               speaking ? "speaking" : ""
             }`}
             priority
@@ -85,13 +85,13 @@ export function DialogueBox({
 }) {
   return (
     <div
-      className={`absolute inset-x-2 bottom-2 sm:inset-x-4 sm:bottom-4 ${onClick ? "cursor-pointer" : ""}`}
+      className={`absolute inset-x-1.5 bottom-1.5 sm:inset-x-4 sm:bottom-4 ${onClick ? "cursor-pointer" : ""}`}
       onClick={onClick}
     >
       <span className="dialogue-name relative z-10 ml-3 inline-block rounded-t-md px-4 py-0.5 text-sm font-bold">
         {name}
       </span>
-      <div className="dialogue-box relative min-h-24 rounded-md p-3 text-base leading-relaxed sm:min-h-28 sm:p-4 sm:text-lg">
+      <div className="dialogue-box relative min-h-20 rounded-md px-3 py-2 text-[15px] leading-relaxed sm:min-h-28 sm:p-4 sm:text-lg">
         {children}
         {waiting && <span className="dialogue-next absolute bottom-2 right-3 text-sm">▼</span>}
       </div>
