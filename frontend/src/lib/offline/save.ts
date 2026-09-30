@@ -25,6 +25,11 @@ export function loadSave(caseId: string): OfflineSave | null {
   return parseSave(localStorage.getItem(saveKey(caseId)));
 }
 
+/** 続きから遊べる保存データか(行動が 1 つ以上ある。開いただけの保存は「続き」にしない)。 */
+export function hasProgress(save: OfflineSave | null): boolean {
+  return save !== null && save.actions.length > 0;
+}
+
 export function writeSave(caseId: string, save: OfflineSave): void {
   localStorage.setItem(saveKey(caseId), JSON.stringify(save));
 }
