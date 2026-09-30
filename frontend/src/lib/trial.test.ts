@@ -9,6 +9,7 @@ import {
   focusLine,
   optionsByLine,
   pendingCollapse,
+  prosecutorLine,
   stepLine,
   testimonyExamined,
 } from "./trial";
@@ -149,5 +150,27 @@ describe("pendingCollapse", () => {
   it("最新の応答が崩れていなければ出さない", () => {
     expect(pendingCollapse(ex(true, false), 0)).toBeNull();
     expect(pendingCollapse([], -1)).toBeNull();
+  });
+});
+
+describe("prosecutorLine", () => {
+  it("ゆさぶるは証言の行を引いて説明を求める", () => {
+    const text = prosecutorLine(option("p", "probe", "L1"), "昨日は家にいました", null, 0);
+    expect(text).toContain("昨日は家にいました");
+  });
+
+  it("つきつけるは証拠品の名前を出す。手番で言い回しが変わる", () => {
+    const present = option("e", "present", "L1");
+    const a = prosecutorLine(present, "昨日は家にいました", "日程表", 0);
+    const b = prosecutorLine(present, "昨日は家にいました", "日程表", 1);
+    expect(a).toContain("日程表");
+    expect(b).toContain("日程表");
+    expect(a).not.toBe(b);
+    expect(prosecutorLine(present, "昨日は家にいました", "日程表", 3)).toBe(a);
+  });
+
+  it("長い証言の行は切り詰めて引く", () => {
+    const text = prosecutorLine(option("p", "probe", "L1"), "あ".repeat(50), null, 0);
+    expect(text).toContain(`${"あ".repeat(27)}…`);
   });
 });

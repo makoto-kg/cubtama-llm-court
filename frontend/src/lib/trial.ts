@@ -41,6 +41,38 @@ export function pendingCollapse(exchanges: readonly { solved: boolean }[], shown
   return i >= 0 && i > shownUpTo && exchanges[i].solved ? i : null;
 }
 
+function quoteLine(text: string, limit = 28): string {
+  return text.length <= limit ? text : `${text.slice(0, limit - 1)}…`;
+}
+
+/**
+ * 「ゆさぶる」「つきつける」を選んだときの検察官(プレイヤー)の台詞。オリジナルの定型文で、LLM は使わない。
+ * 手番の番号 `n` で言い回しを変える(同じ手番なら同じ台詞)。
+ */
+export function prosecutorLine(
+  option: TrialOption,
+  lineText: string,
+  evidenceName: string | null,
+  n: number,
+): string {
+  const line = quoteLine(lineText);
+  if (option.kind === "probe") {
+    const lines = [
+      `今の証言、「${line}」……もう少し詳しく聞かせてもらいましょう。`,
+      `「${line}」とおっしゃいましたね。具体的に説明してください。`,
+      `その話、どうも引っかかります。「${line}」とは、どういう意味ですか?`,
+    ];
+    return lines[n % lines.length];
+  }
+  const evidence = evidenceName ?? "この証拠品";
+  const lines = [
+    `「${line}」……本当ですか? では、この「${evidence}」をご覧ください!`,
+    `今の証言は、この「${evidence}」と食い違っています!`,
+    `「${evidence}」を見てください。これでもまだ「${line}」と言い張りますか?`,
+  ];
+  return lines[n % lines.length];
+}
+
 export function isTrialFinished(view: TrialView | null): boolean {
   return view?.status === "finished" || view?.status === "aborted";
 }
