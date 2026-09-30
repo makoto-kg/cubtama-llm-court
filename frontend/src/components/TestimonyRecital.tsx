@@ -4,15 +4,13 @@ import { useCallback, useMemo, useState } from "react";
 
 import type { TrialView } from "@/api/client";
 import { useDialogue } from "@/hooks/useDialogue";
-import { TESTIMONY_CUT_IN, personName } from "@/lib/trial";
+import { speakerLabel } from "@/lib/roles";
+import { TESTIMONY_CUT_IN } from "@/lib/trial";
 
 import { CourtShot, DialogueBox } from "./CourtScene";
 import { CutInView } from "./CutIn";
 
 type Testimony = TrialView["case"]["testimonies"][number];
-
-/** 読み終えてから次の行へ自動で進むまでの間。 */
-const AUTO_ADVANCE_MS = 1400;
 
 /**
  * 証言の読み上げ。「証言開始」→ 被告が証言の行を 1 行ずつ話す → 「尋問開始」。
@@ -33,7 +31,6 @@ export function TestimonyRecital({
   const dialogue = useDialogue({
     texts,
     hold: !started || ending,
-    autoAdvanceMs: AUTO_ADVANCE_MS,
     onEnd: () => setEnding(true),
   });
   const cutIn = useMemo(() => {
@@ -46,7 +43,7 @@ export function TestimonyRecital({
     else setStarted(true);
   }, [ending, onFinish]);
 
-  const witnessName = personName(view, testimony.witness_id);
+  const witnessName = speakerLabel(view, testimony.witness_id);
   return (
     <div className="space-y-2">
       <CutInView cutIn={cutIn} onDone={clearCutIn} />

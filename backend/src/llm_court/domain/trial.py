@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from llm_court.domain.case import LearningPoint
+from llm_court.domain.case import CaseVerdict, LearningPoint
 from llm_court.domain.choices import Strength
 
 
@@ -86,3 +86,5 @@ class Explanation(_Frozen):
     answer: str
     items: list[ExplanationItem]
     learning_points: list[LearningPoint]
+    verdict: CaseVerdict | None = None
+    """判決の刑罰と被告の反応(ADR 0020)。"""

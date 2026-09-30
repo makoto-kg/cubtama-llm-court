@@ -144,9 +144,11 @@ def trial_view(state: TrialState, mode: TrialMode, task: TaskView | None) -> Tri
         )
     pending = state.pending_choices
     answer = state.answer
+    tried = {(c.option.kind, c.option.line_id, c.option.evidence_id) for c in state.choices}
     return TrialView(
         session_id=state.session_id,
-        case=case.public_view(),
+        # 証拠品は手元にあるものだけ(尋問の中で手に入る証拠品は、手に入れてから出す。ADR 0019)
+        case=case.public_view(case.available_evidence_ids(tried)),
         status=trial_status(state),
         stage=state.stage,
         running_task=task,

@@ -45,32 +45,54 @@ function quoteLine(text: string, limit = 28): string {
   return text.length <= limit ? text : `${text.slice(0, limit - 1)}…`;
 }
 
+/** 検察官の台詞(定型文)の口調。事件の `prosecutor_speech`。cat は猫言葉。 */
+export type ProsecutorSpeech = "plain" | "cat";
+
+const PROBE_LINES: Record<ProsecutorSpeech, ((line: string) => string)[]> = {
+  plain: [
+    (line) => `今の証言、「${line}」……もう少し詳しく聞かせてもらいましょう。`,
+    (line) => `「${line}」とおっしゃいましたね。具体的に説明してください。`,
+    (line) => `その話、どうも引っかかります。「${line}」とは、どういう意味ですか?`,
+  ],
+  cat: [
+    (line) => `今の証言、「${line}」……もうちょっと詳しく聞かせてもらうにゃ。`,
+    (line) => `「${line}」って言ったにゃ? くわしく説明するにゃ!`,
+    (line) => `その話、なんだかくさいにゃ……。「${line}」って、どういうことにゃ?`,
+  ],
+};
+
+const PRESENT_LINES: Record<ProsecutorSpeech, ((line: string, evidence: string) => string)[]> = {
+  plain: [
+    (line, evidence) => `「${line}」……本当ですか? では、この「${evidence}」をご覧ください!`,
+    (_line, evidence) => `今の証言は、この「${evidence}」と食い違っています!`,
+    (line, evidence) => `「${evidence}」を見てください。これでもまだ「${line}」と言い張りますか?`,
+  ],
+  cat: [
+    (line, evidence) => `「${line}」……ほんとかにゃ? じゃあ、この「${evidence}」を見るにゃ!`,
+    (_line, evidence) => `今の証言は、この「${evidence}」と食いちがってるにゃ!`,
+    (line, evidence) => `「${evidence}」を見るにゃ。これでもまだ「${line}」って言いはるのかにゃ?`,
+  ],
+};
+
 /**
  * 「ゆさぶる」「つきつける」を選んだときの検察官(プレイヤー)の台詞。オリジナルの定型文で、LLM は使わない。
- * 手番の番号 `n` で言い回しを変える(同じ手番なら同じ台詞)。
+ * 手番の番号 `n` で言い回しを変える(同じ手番なら同じ台詞)。口調は事件の `prosecutor_speech`。
  */
 export function prosecutorLine(
   option: TrialOption,
   lineText: string,
   evidenceName: string | null,
   n: number,
+  speech: ProsecutorSpeech = "plain",
 ): string {
   const line = quoteLine(lineText);
+  // 口調の欄がない古いパックは、ふつうの口調にする
   if (option.kind === "probe") {
-    const lines = [
-      `今の証言、「${line}」……もう少し詳しく聞かせてもらいましょう。`,
-      `「${line}」とおっしゃいましたね。具体的に説明してください。`,
-      `その話、どうも引っかかります。「${line}」とは、どういう意味ですか?`,
-    ];
-    return lines[n % lines.length];
+    const lines = PROBE_LINES[speech] ?? PROBE_LINES.plain;
+    return lines[n % lines.length](line);
   }
-  const evidence = evidenceName ?? "この証拠品";
-  const lines = [
-    `「${line}」……本当ですか? では、この「${evidence}」をご覧ください!`,
-    `今の証言は、この「${evidence}」と食い違っています!`,
-    `「${evidence}」を見てください。これでもまだ「${line}」と言い張りますか?`,
-  ];
-  return lines[n % lines.length];
+  const lines = PRESENT_LINES[speech] ?? PRESENT_LINES.plain;
+  return lines[n % lines.length](line, evidenceName ?? "この証拠品");
 }
 
 export function isTrialFinished(view: TrialView | null): boolean {

@@ -163,7 +163,10 @@ class TrialEngine:
             await self._next()
 
     async def choose(self, option_id: str) -> None:
-        """選択肢を選び、証人に応答させ、次の選択肢(または最後の問い)まで進める。"""
+        """選択肢を選び、被告に応答させ、次の選択肢まで進める。
+
+        全矛盾を解いたら、最後の問いを出さずに閉廷する(ADR 0020)。
+        """
         pending = self.state.pending_choices
         if self.state.stage != "choosing" or pending is None:
             raise SessionStateError("選択を受け付ける場面ではありません")
@@ -186,13 +189,21 @@ class TrialEngine:
             await self._respond(testimony, option)
             if option.contradiction_id is not None:
                 await self._emit(ContradictionSolved(contradiction_id=option.contradiction_id))
+                if self.state.all_solved:
+                    # 最後の問いは出さず、全矛盾を解いたら判決へ(閉廷)
+                    await self._emit(TrialFinished(result="solved"))
+                    return
             if self.state.penalty_gauge <= 0:
                 await self._emit(TrialFinished(result="penalty"))
                 return
             await self._next()
 
     async def answer(self, index: int) -> bool:
-        """最後の問いに答えて閉廷する。正答なら True。"""
+        """最後の問いに答えて閉廷する。正答なら True。
+
+        全矛盾を解くと閉廷するようになったため(ADR 0020)、問いに答えるのは
+        その前に記録したセッション(最後の問いの回答待ちで止まっているもの)だけ。
+        """
         if self.state.stage != "answering":
             raise SessionStateError("最後の問いに答える場面ではありません")
         question = self._case.question

@@ -3,9 +3,10 @@
 import { useCallback, useMemo, useState } from "react";
 
 import type { TrialView } from "@/api/client";
-import { TRIAL_ROLE_NAMES } from "@/assets/manifest";
 import { useDialogue } from "@/hooks/useDialogue";
-import { defendantOf, OPENING_CUT_IN, openingScript, type OpeningSpeaker } from "@/lib/opening";
+import { defendantLabel, judgeLabel, prosecutorLabel } from "@/lib/roles";
+import { type OpeningLine, OPENING_CUT_IN, openingScript, type OpeningSpeaker } from "@/lib/opening";
+import { VERDICT_CUT_IN, verdictScript } from "@/lib/verdict";
 
 import { CourtShot, type CourtShotKind, DialogueBox } from "./CourtScene";
 import { CutInView } from "./CutIn";
@@ -14,18 +15,30 @@ import { GameShell } from "./GameShell";
 /** 話す人ごとの法廷の画面。被告は証言台に立つ。 */
 const SHOT: Record<OpeningSpeaker, CourtShotKind> = { judge: "judge", prosecutor: "prosecutor", defendant: "stand" };
 
-function speakerName(speaker: OpeningSpeaker, defendantName: string | null): string {
-  if (speaker === "prosecutor") return `${TRIAL_ROLE_NAMES.prosecutor}(あなた)`;
-  if (speaker === "defendant") return defendantName ?? TRIAL_ROLE_NAMES.defendant;
-  return TRIAL_ROLE_NAMES.judge;
+/** 名札: 名前（裁判官） / 名前（検察官） / 名前（被告）。 */
+function speakerName(speaker: OpeningSpeaker, view: TrialView): string {
+  if (speaker === "prosecutor") return prosecutorLabel(view);
+  if (speaker === "defendant") return defendantLabel(view);
+  return judgeLabel();
 }
 
 /**
- * 開廷の場面。裁判官の挨拶と事件の超概要・被告の紹介 → 検察官と被告の宣言 → 審理開始。
+ * 台本どおりに話す法廷の場面(開廷・判決)。話す人ごとに画面を切り替え、台詞の前にカットインや木槌を入れる。
  * クリック・Enter・Space で台詞を送る(表示中なら全文を出す)。表示だけの場面で、ゲームの状態は変えない。
  */
-export function OpeningSequence({ view, onFinish }: { view: TrialView; onFinish: () => void }) {
-  const script = useMemo(() => openingScript(view), [view]);
+function ScriptedScene({
+  view,
+  script,
+  label,
+  endCutIn,
+  onFinish,
+}: {
+  view: TrialView;
+  script: OpeningLine[];
+  label: string;
+  endCutIn: string;
+  onFinish: () => void;
+}) {
   const texts = useMemo(() => script.map((l) => l.text), [script]);
   // カットインを見せ終えた台詞の番号(その台詞のカットインが済むまで文字送りを止める)
   const [cutInSeen, setCutInSeen] = useState(-1);
@@ -40,9 +53,9 @@ export function OpeningSequence({ view, onFinish }: { view: TrialView; onFinish:
   const holding = dialogue.hold;
 
   const cutIn = useMemo(() => {
-    if (ending) return { text: OPENING_CUT_IN.start, key: -1, strong: true };
+    if (ending) return { text: endCutIn, key: -1, strong: true };
     return holding && lineCutIn ? { text: lineCutIn, key: lineIndex, strong: true } : null;
-  }, [ending, holding, lineCutIn, lineIndex]);
+  }, [ending, holding, lineCutIn, lineIndex, endCutIn]);
   const clearCutIn = useCallback(() => {
     if (ending) onFinish();
     else setCutInSeen(lineIndex);
@@ -50,7 +63,7 @@ export function OpeningSequence({ view, onFinish }: { view: TrialView; onFinish:
 
   const line = script[dialogue.index];
   if (!line) return null;
-  const name = speakerName(line.speaker, defendantOf(view)?.name ?? null);
+  const name = speakerName(line.speaker, view);
   const showText = !holding || ending;
   const stage = (
       <CourtShot kind={SHOT[line.speaker]} alt={name} speaking={dialogue.typing} shake={Boolean(line.gavel) && showText}>
@@ -72,7 +85,7 @@ export function OpeningSequence({ view, onFinish }: { view: TrialView; onFinish:
       <GameShell
         top={
           <div className="flex items-center justify-between gap-2 text-xs">
-            <span className="min-w-0 truncate opacity-80">{view.case.title} — 開廷</span>
+            <span className="min-w-0 truncate opacity-80">{label}</span>
             <button onClick={onFinish} className="shrink-0 rounded border px-3 py-1">
               スキップ
             </button>
@@ -82,5 +95,33 @@ export function OpeningSequence({ view, onFinish }: { view: TrialView; onFinish:
         panel={<p className="text-center text-xs opacity-60">タップ・Enter で次へ</p>}
       />
     </>
+  );
+}
+
+/** 開廷の場面。裁判官の挨拶と事件の超概要・被告の紹介 → 検察官と被告の宣言 → 審理開始。 */
+export function OpeningSequence({ view, onFinish }: { view: TrialView; onFinish: () => void }) {
+  const script = useMemo(() => openingScript(view), [view]);
+  return (
+    <ScriptedScene
+      view={view}
+      script={script}
+      label={`${view.case.title} — 開廷`}
+      endCutIn={OPENING_CUT_IN.start}
+      onFinish={onFinish}
+    />
+  );
+}
+
+/** 判決の場面(ADR 0020)。裁判官が有罪と刑罰を言い渡し、被告が反応する → 閉廷 → 裁判のまとめ。 */
+export function VerdictSequence({ view, onFinish }: { view: TrialView; onFinish: () => void }) {
+  const script = useMemo(() => verdictScript(view), [view]);
+  return (
+    <ScriptedScene
+      view={view}
+      script={script}
+      label={`${view.case.title} — 判決`}
+      endCutIn={VERDICT_CUT_IN.close}
+      onFinish={onFinish}
+    />
   );
 }

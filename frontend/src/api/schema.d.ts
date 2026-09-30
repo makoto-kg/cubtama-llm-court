@@ -515,6 +515,20 @@ export interface components {
             /** Contradictions */
             contradictions: components["schemas"]["Contradiction"][];
             research: components["schemas"]["ResearchReport"];
+            /** Prosecutor Id */
+            prosecutor_id?: string | null;
+            /**
+             * Prosecutor Speech
+             * @default plain
+             * @enum {string}
+             */
+            prosecutor_speech: "plain" | "cat";
+            /**
+             * Evidence Unlocks
+             * @default []
+             */
+            evidence_unlocks: components["schemas"]["EvidenceUnlock"][];
+            verdict?: components["schemas"]["CaseVerdict"] | null;
             /** Defendant Id */
             defendant_id?: string | null;
             generation?: components["schemas"]["CaseGeneration"] | null;
@@ -584,6 +598,14 @@ export interface components {
             testimonies: components["schemas"]["PublicTestimony"][];
             /** Defendant Id */
             defendant_id?: string | null;
+            /** Prosecutor Id */
+            prosecutor_id?: string | null;
+            /**
+             * Prosecutor Speech
+             * @default plain
+             * @enum {string}
+             */
+            prosecutor_speech: "plain" | "cat";
         };
         /** CaseQuestion */
         CaseQuestion: {
@@ -665,6 +687,16 @@ export interface components {
             unique: boolean;
             /** Min Steps */
             min_steps: number | null;
+        };
+        /**
+         * CaseVerdict
+         * @description 全矛盾を解いたあとの判決(ADR 0020)。裁判官が刑罰を言い渡し、被告が反応する。
+         */
+        CaseVerdict: {
+            /** Sentence */
+            sentence: string;
+            /** Defendant Reaction */
+            defendant_reaction: string;
         };
         /** CheckIssue */
         CheckIssue: {
@@ -1131,6 +1163,28 @@ export interface components {
             created_at: string;
         };
         /**
+         * EvidenceUnlock
+         * @description 尋問の中で手に入る証拠品(ADR 0019)。
+         *
+         *     決まった行動を取るまで、法廷記録に出さず、つきつけられない。
+         *
+         *     例: ある証言の行を「ゆさぶる」と、被告が口をすべらせて新しい証拠品になる。
+         */
+        EvidenceUnlock: {
+            /** Evidence Id */
+            evidence_id: string;
+            /**
+             * Kind
+             * @default probe
+             * @enum {string}
+             */
+            kind: "probe" | "present";
+            /** Line Id */
+            line_id: string;
+            /** Presented Evidence Id */
+            presented_evidence_id?: string | null;
+        };
+        /**
          * Explanation
          * @description 閉廷後の解説(事件のデータだけから組み立てる。LLM で書かない)。
          */
@@ -1147,6 +1201,7 @@ export interface components {
             items: components["schemas"]["ExplanationItem"][];
             /** Learning Points */
             learning_points: components["schemas"]["LearningPoint"][];
+            verdict?: components["schemas"]["CaseVerdict"] | null;
         };
         /**
          * ExplanationItem
@@ -2332,6 +2387,11 @@ export interface components {
             contradictions: components["schemas"]["OfflineContradiction"][];
             /** Answer Index */
             answer_index: number;
+            /**
+             * Unlocks
+             * @default []
+             */
+            unlocks: components["schemas"]["EvidenceUnlock"][];
         };
         /** OfflineContradiction */
         OfflineContradiction: {

@@ -2,25 +2,24 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { isAdvanceKey } from "@/lib/keys";
 import { nextVisibleLength } from "@/lib/typewriter";
 
 /**
  * 台詞の列を 1 つずつタイプライター表示で送る(開廷の場面・証言の読み上げ)。
  * - `advance`: 表示中なら全文を出し、読み終わっていれば次の台詞へ。最後の台詞の後で `onEnd` を 1 回呼ぶ
  * - `hold` の間(カットインなど)は文字送りも操作も止める。台詞の番号ごとに決めるなら関数で渡す
- * - `autoAdvanceMs` を渡すと、読み終わってからその時間で自動的に次へ進む
+ * - 自動では進めない。読み終えたらクリック・タップ・Enter・Space を待つ
  * - Enter・Space でも `advance` する
  */
 export function useDialogue({
   texts,
   hold: holdOption = false,
-  autoAdvanceMs,
   charsPerSecond = 30,
   onEnd,
 }: {
   texts: string[];
   hold?: boolean | ((index: number) => boolean);
-  autoAdvanceMs?: number;
   charsPerSecond?: number;
   onEnd: () => void;
 }) {
@@ -60,14 +59,8 @@ export function useDialogue({
   }, [hold, ended, done, text.length, index, texts.length, onEnd]);
 
   useEffect(() => {
-    if (autoAdvanceMs === undefined || hold || ended || !done) return;
-    const timer = setTimeout(advance, autoAdvanceMs);
-    return () => clearTimeout(timer);
-  }, [autoAdvanceMs, hold, ended, done, advance]);
-
-  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter" || e.key === " ") {
+      if (isAdvanceKey(e)) {
         e.preventDefault();
         advance();
       }

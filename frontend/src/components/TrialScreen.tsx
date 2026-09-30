@@ -8,8 +8,11 @@ import type { LLMCallInfo, ObjectionTarget, TrialOption, TrialView } from "@/api
 import { TRIAL_ROLE_NAMES } from "@/assets/manifest";
 import { useTrialSession } from "@/hooks/useTrialSession";
 import { llmCalls } from "@/lib/events";
+import { isAdvanceKey } from "@/lib/keys";
 import { STRENGTH_LABELS } from "@/lib/labels";
 import { shouldShowOpening } from "@/lib/opening";
+import { judgeLabel, prosecutorLabel, speakerLabel } from "@/lib/roles";
+import { hasVerdictScene } from "@/lib/verdict";
 import {
   COLLAPSE_CUT_IN,
   currentTestimony,
@@ -27,10 +30,10 @@ import { useTrialStore } from "@/store/trial";
 import { CourtRecordDrawer, ExchangeLog } from "./CourtRecord";
 import { CourtShot, DialogueBox } from "./CourtScene";
 import { CutInView } from "./CutIn";
-import { EvidenceOverlay } from "./EvidenceOverlay";
+import { EvidenceOverlay, NewEvidenceNotice } from "./EvidenceOverlay";
 import { ExaminationPanel } from "./ExaminationPanel";
 import { GameShell } from "./GameShell";
-import { OpeningSequence } from "./OpeningSequence";
+import { OpeningSequence, VerdictSequence } from "./OpeningSequence";
 import { PenaltyGauge } from "./PenaltyGauge";
 import { TestimonyRecital } from "./TestimonyRecital";
 import { ThinkingLog } from "./ThinkingLog";
@@ -142,7 +145,14 @@ export function TrialBoard({
     null,
   );
   const [accusationTyped, setAccusationTyped] = useState<number | null>(null);
+  // 尋問の中で手に入った証拠品の知らせ(ADR 0019)。知らせ終えた証拠品(開いた時点で手元にあるものは知らせない)
+  const [knownEvidence, setKnownEvidence] = useState(() => view.case.evidence.map((e) => e.id));
+  // 全矛盾を解いて閉廷したら、崩れた応答を読んでから判決の場面へ(ADR 0020)。
+  // 開いた時点で閉廷していた裁判では判決の場面を出さず、裁判のまとめだけにする
+  const [verdictDone, setVerdictDone] = useState(() => view.status === "finished" || view.status === "aborted");
+  const [verdictStarted, setVerdictStarted] = useState(false);
   const finished = view.status === "finished" || view.status === "aborted";
+  const verdictPending = hasVerdictScene(view) && !verdictDone;
   const testimony = currentTestimony(view);
   // 証言が始まったら、まず被告に一通り証言させてから尋問の操作を出す。
   // 被告の応答・カットインの最中は待ち、前の応答が画面にあればタップで次の証言へ進める
@@ -154,7 +164,7 @@ export function TrialBoard({
   const recitalPending = recitalNeeded && quiet && !recitalPlaying;
   const last = view.exchanges.at(-1) ?? null;
   const witnessId = streaming?.witnessId ?? testimony?.witness_id ?? last?.witness_id ?? null;
-  const witnessName = witnessId ? personName(view, witnessId) : TRIAL_ROLE_NAMES.defendant;
+  const witnessName = witnessId ? speakerLabel(view, witnessId) : TRIAL_ROLE_NAMES.defendant;
   const solved = new Set(view.solved_line_ids);
   const lineIds = testimony?.lines.map((l) => l.id) ?? [];
   const groups = optionsByLine(lineIds, view.pending_options);
@@ -188,6 +198,17 @@ export function TrialBoard({
         : null,
     [collapseIndex, cutIn, typedKey],
   );
+  // 新しい証拠品は、手に入れた応答を読み終えてから知らせる(カットイン・証言崩壊の後)
+  const newEvidence = view.case.evidence.filter((e) => !knownEvidence.includes(e.id));
+  const evidenceBusy = newEvidence.length > 0;
+  const showNewEvidence =
+    evidenceBusy &&
+    !streaming &&
+    !prosecutorPhase &&
+    !cutIn &&
+    !collapseCutIn &&
+    !collapseBusy &&
+    typedKey === `r-${view.exchanges.length - 1}`;
   const clearCollapse = useCallback(() => {
     if (collapseIndex !== null) setCollapseShown(collapseIndex);
   }, [collapseIndex]);
@@ -200,13 +221,19 @@ export function TrialBoard({
     () => setAccusation((a) => (a && !a.spoken ? { ...a, spoken: true } : a)),
     [],
   );
-  // 検察官の台詞を読み終えたら、少し間をおいて被告の応答へ(タップでもすぐ進む)
-  const accusationDone = prosecutorPhase && !cutIn && accusationTyped === accusation?.index;
+  // 検察官の台詞は、読み終えてからタップ・Enter・Space で被告の応答へ進む(自動では進めない)
+  const accusationReady = prosecutorPhase && !cutIn && accusationTyped === accusation?.index;
   useEffect(() => {
-    if (!accusationDone) return;
-    const timer = setTimeout(finishAccusation, 900);
-    return () => clearTimeout(timer);
-  }, [accusationDone, finishAccusation]);
+    if (!accusationReady) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (isAdvanceKey(e)) {
+        e.preventDefault();
+        finishAccusation();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [accusationReady, finishAccusation]);
   const pointLine = (id: string | null) => {
     if (!id) return;
     setLineChoice(id);
@@ -247,7 +274,11 @@ export function TrialBoard({
     return <OpeningSequence view={view} onFinish={() => setOpeningDone(true)} />;
   }
 
-  if (finished) {
+  if (verdictPending && verdictStarted) {
+    return <VerdictSequence view={view} onFinish={() => setVerdictDone(true)} />;
+  }
+
+  if (finished && !verdictPending) {
     return (
       <div className="space-y-4">
         <CutInView cutIn={cutIn} onDone={onClearCutIn} />
@@ -296,13 +327,13 @@ export function TrialBoard({
     stage = (
       <CourtShot kind="prosecutor" alt={TRIAL_ROLE_NAMES.prosecutor} speaking={!cutIn && !typed}>
         <DialogueBox
-          name={`${TRIAL_ROLE_NAMES.prosecutor}(あなた)`}
+          name={prosecutorLabel(view)}
           waiting={typed && !cutIn}
           onClick={typed && !cutIn ? finishAccusation : undefined}
         >
           <p>
             <Typewriter
-              text={prosecutorLine(option, lineText, evidenceName, accusation.index)}
+              text={prosecutorLine(option, lineText, evidenceName, accusation.index, view.case.prosecutor_speech)}
               resetKey={`p-${accusation.index}`}
               active={false}
               paused={Boolean(cutIn)}
@@ -313,6 +344,29 @@ export function TrialBoard({
       </CourtShot>
     );
     panel = examination(true);
+  } else if (verdictPending && last) {
+    // 最後の矛盾を崩した応答(と「証言崩壊!」)のあと、判決へ
+    const waiting = Boolean(streaming) || holdReply || collapseBusy;
+    stage = (
+      <CourtShot kind="stand" alt={personName(view, last.witness_id)}>
+        <DialogueBox
+          name={speakerLabel(view, last.witness_id)}
+          waiting={!waiting}
+          onClick={waiting ? undefined : () => setVerdictStarted(true)}
+        >
+          <p>{replyText(last.text)}</p>
+        </DialogueBox>
+      </CourtShot>
+    );
+    panel = (
+      <button
+        onClick={() => setVerdictStarted(true)}
+        disabled={waiting}
+        className="w-full rounded-lg border-2 border-[var(--court-accent)] bg-black/40 p-3 font-bold hover:bg-white/10 disabled:opacity-40"
+      >
+        判決へ ▶
+      </button>
+    );
   } else if (recitalPlaying && testimony) {
     stage = (
       <TestimonyRecital key={testimony.id} view={view} testimony={testimony} onFinish={() => finishRecital(testimony.id)} />
@@ -321,7 +375,7 @@ export function TrialBoard({
     stage = (
       <CourtShot kind="stand" alt={personName(view, last.witness_id)}>
         <DialogueBox
-          name={personName(view, last.witness_id)}
+          name={speakerLabel(view, last.witness_id)}
           waiting={!collapseBusy}
           onClick={collapseBusy ? undefined : () => setPlayId(testimony.id)}
         >
@@ -342,7 +396,7 @@ export function TrialBoard({
     stage = (
       <CourtShot kind="stand" alt={personName(view, last.witness_id)}>
         <DialogueBox
-          name={personName(view, last.witness_id)}
+          name={speakerLabel(view, last.witness_id)}
           waiting={!holdReply && !collapseBusy}
           onClick={holdReply || collapseBusy ? undefined : () => setQuestionReady(true)}
         >
@@ -361,8 +415,8 @@ export function TrialBoard({
     );
   } else if (view.stage === "answering" && !streaming) {
     stage = (
-      <CourtShot kind="judge" alt={TRIAL_ROLE_NAMES.judge}>
-        <DialogueBox name={TRIAL_ROLE_NAMES.judge}>
+      <CourtShot kind="judge" alt={judgeLabel()}>
+        <DialogueBox name={judgeLabel()}>
           <p>
             すべての矛盾が明らかになりました。最後に問います。
             <br />
@@ -387,8 +441,8 @@ export function TrialBoard({
     );
   } else {
     const showLine = !reply && line;
-    const busy = Boolean(streaming) || running || holdReply || collapseBusy;
-    const speakerName = reply ? personName(view, reply.witnessId) : witnessName;
+    const busy = Boolean(streaming) || running || holdReply || collapseBusy || evidenceBusy;
+    const speakerName = reply ? speakerLabel(view, reply.witnessId) : witnessName;
     stage = (
       <CourtShot kind="stand" alt={speakerName} speaking={Boolean(streaming) && !holdReply}>
         <DialogueBox
@@ -434,6 +488,12 @@ export function TrialBoard({
     <>
       <CutInView cutIn={cutIn} onDone={onClearCutIn} />
       <CutInView cutIn={collapseCutIn} onDone={clearCollapse} />
+      {showNewEvidence && (
+        <NewEvidenceNotice
+          evidence={newEvidence}
+          onClose={() => setKnownEvidence(view.case.evidence.map((e) => e.id))}
+        />
+      )}
       <GameShell
         top={
           <>

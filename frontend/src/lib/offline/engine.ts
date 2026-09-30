@@ -8,7 +8,7 @@ import type {
   TrialView,
 } from "@/api/client";
 
-import { prepareOptions, triedKey } from "./analyst";
+import { availableEvidenceIds, prepareOptions, triedKey } from "./analyst";
 
 /**
  * オフラインの裁判の進行(backend の `TrialEngine` / `TrialState` の移植)。
@@ -135,12 +135,15 @@ function choose(state: OfflineState, optionId: string): OfflineState {
     calls: response?.call ? [...state.calls, response.call] : state.calls,
     tried: new Set([...state.tried, triedKey(option)]),
     solved,
-    result: gauge <= 0 ? "penalty" : null,
+    // 全矛盾を解いたら、最後の問いを出さずに閉廷する(ADR 0020)
+    result: solved.length === state.pack.answers.contradictions.length ? "solved" : gauge <= 0 ? "penalty" : null,
   };
   return next(updated);
 }
 
 function answer(state: OfflineState, index: number): OfflineState {
+  // 以前の保存データ(最後の問いに答えていたもの)は、全矛盾を解いた時点で閉廷済みなので読み飛ばす
+  if (state.result === "solved" && state.answerIndex === null) return state;
   if (state.result !== null || !allSolved(state)) {
     throw new OfflineActionError("最後の問いに答える場面ではありません");
   }
@@ -193,9 +196,11 @@ export function toTrialView(state: OfflineState): TrialView {
   const finished = state.result !== null;
   const contradictions = new Map(pack.answers.contradictions.map((c) => [c.id, c]));
   const stage: TrialView["stage"] = finished ? "finished" : allSolved(state) ? "answering" : "choosing";
+  const available = availableEvidenceIds(pack, state.tried);
   return {
     session_id: state.seed,
-    case: pack.case,
+    // 証拠品は手元にあるものだけ(尋問の中で手に入る証拠品は、手に入れてから出す。ADR 0019)
+    case: { ...pack.case, evidence: pack.case.evidence.filter((e) => available.has(e.id)) },
     status: finished ? "finished" : stage === "answering" ? "answering" : "in_progress",
     stage,
     running_task: null,

@@ -71,7 +71,7 @@ function ObjectionForm({
   );
 }
 
-/** 閉廷後の解説(事件のデータから組み立てたもの。出典付き)。 */
+/** 閉廷後の裁判のまとめ(判決・結果・解説。事件のデータから組み立てたもの。出典付き)。 */
 export function TrialExplanation({
   view,
   onObject,
@@ -85,16 +85,40 @@ export function TrialExplanation({
   const result = view.result ?? "penalty";
   return (
     <section className="space-y-4">
-      <div className="rounded-lg border-2 border-[var(--court-accent)] bg-black/50 p-4 text-center">
-        <p className="text-sm opacity-70">閉廷</p>
+      <div className="space-y-2 rounded-lg border-2 border-[var(--court-accent)] bg-black/50 p-4 text-center">
+        <p className="text-sm opacity-70">閉廷 — 裁判のまとめ</p>
         <p className={`text-3xl font-black ${result === "solved" ? "text-[var(--court-accent)]" : "text-red-300"}`}>
           {RESULT_LABELS[result] ?? result}
         </p>
-        <p className="mt-1 text-sm">
-          解いた矛盾 {view.solved_count}/{view.contradiction_count}
-          {view.answer_index != null &&
-            ` / 問いの答え: ${view.case.question.options[view.answer_index]}(${view.answer_correct ? "正解" : "不正解"})`}
-        </p>
+        {result === "solved" && (
+          <p className="rounded bg-black/40 px-3 py-2 text-sm">
+            <span className="mr-2 rounded bg-[var(--court-accent)] px-2 py-0.5 text-xs font-bold text-black">判決</span>
+            有罪{explanation.verdict ? ` — ${explanation.verdict.sentence}` : ""}
+          </p>
+        )}
+        <dl className="grid grid-cols-3 gap-2 text-xs">
+          <div className="rounded bg-black/30 p-2">
+            <dt className="opacity-70">解いた矛盾</dt>
+            <dd className="text-base font-bold tabular-nums">
+              {view.solved_count}/{view.contradiction_count}
+            </dd>
+          </div>
+          <div className="rounded bg-black/30 p-2">
+            <dt className="opacity-70">尋問</dt>
+            <dd className="text-base font-bold tabular-nums">{view.exchanges.length} 回</dd>
+          </div>
+          <div className="rounded bg-black/30 p-2">
+            <dt className="opacity-70">残りのゲージ</dt>
+            <dd className="text-base font-bold tabular-nums">
+              {Math.max(view.penalty_gauge, 0)}/{view.penalty_gauge_max}
+            </dd>
+          </div>
+        </dl>
+        {view.answer_index != null && (
+          <p className="text-xs opacity-80">
+            問いの答え: {view.case.question.options[view.answer_index]}({view.answer_correct ? "正解" : "不正解"})
+          </p>
+        )}
       </div>
 
       <div className="space-y-2 rounded-lg bg-black/30 p-4">
@@ -103,10 +127,13 @@ export function TrialExplanation({
           <span className="mr-2 rounded bg-white/10 px-1 text-xs">真相</span>
           {explanation.truth}
         </p>
-        <p>
-          <span className="mr-2 rounded bg-white/10 px-1 text-xs">問い</span>
-          {explanation.question} → <span className="font-bold">{explanation.answer}</span>
-        </p>
+        {view.answer_index != null && (
+          // 最後の問いに答えた、以前のセッションだけ(ADR 0020)
+          <p>
+            <span className="mr-2 rounded bg-white/10 px-1 text-xs">問い</span>
+            {explanation.question} → <span className="font-bold">{explanation.answer}</span>
+          </p>
+        )}
       </div>
 
       {explanation.items.map((item) => (

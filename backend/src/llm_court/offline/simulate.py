@@ -44,14 +44,20 @@ class Action:
 
 
 def enumerate_actions(case: Case) -> list[Action]:
-    """分析官が並べうる全行動(矛盾のある証言だけが尋問の対象になる)。"""
+    """分析官が並べうる全行動(矛盾のある証言だけが尋問の対象になる)。
+
+    尋問の中で手に入る証拠品は、手に入れる行動がある証言とそれより後の証言でだけつきつけられる。
+    """
     evidence = {e.id: e for e in case.evidence}
+    testimony_index = {line.id: i for i, t in enumerate(case.testimonies) for line in t.lines}
+    unlock_at = {u.evidence_id: testimony_index.get(u.line_id, 0) for u in case.evidence_unlocks}
     correct = {(c.testimony_line_id, c.evidence_id): c.id for c in case.contradictions}
     contradiction_lines = {c.testimony_line_id for c in case.contradictions}
     actions: list[Action] = []
-    for testimony in case.testimonies:
+    for index, testimony in enumerate(case.testimonies):
         if not any(line.id in contradiction_lines for line in testimony.lines):
             continue
+        reachable = [ev for ev in evidence.values() if unlock_at.get(ev.id, 0) <= index]
         for line in testimony.lines:
             actions.append(
                 Action(
@@ -65,7 +71,7 @@ def enumerate_actions(case: Case) -> list[Action]:
                     ),
                 )
             )
-            for ev in evidence.values():
+            for ev in reachable:
                 key = present_key(line.id, ev.id)
                 contradiction_id = correct.get((line.id, ev.id))
                 actions.append(
@@ -165,7 +171,8 @@ class OfflineSimulator:
         if self._check:
             models[Role.JUDGE.value] = self._llm.config.resolve(Role.JUDGE).model.model
         return OfflinePack(
-            case=case.public_view(),
+            # 尋問の中で手に入る証拠品も含める(手元にあるかはブラウザが行動の列から決める)
+            case=case.public_view({e.id for e in case.evidence}),
             theme=case.theme,
             answers=pack_answers(case),
             explanation=build_explanation(case),
@@ -198,6 +205,7 @@ def pack_answers(case: Case) -> OfflineAnswers:
             for c in case.contradictions
         ],
         answer_index=case.question.answer_index,
+        unlocks=case.evidence_unlocks,
     )
 
 

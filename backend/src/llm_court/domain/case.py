@@ -5,8 +5,9 @@
 渡すのは `Case.public_view()` の `CasePublic` だけ。
 """
 
+from collections.abc import Collection
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -75,6 +76,37 @@ class CaseEvidence(_Frozen):
     name: str
     description: str
     details: list[str]
+
+
+class CaseVerdict(_Frozen):
+    """全矛盾を解いたあとの判決(ADR 0020)。裁判官が刑罰を言い渡し、被告が反応する。"""
+
+    sentence: str
+    """刑罰(例: 3日間おやつ抜き)。"""
+    defendant_reaction: str
+    """判決を聞いた被告の台詞。"""
+
+
+class EvidenceUnlock(_Frozen):
+    """尋問の中で手に入る証拠品(ADR 0019)。
+
+    決まった行動を取るまで、法廷記録に出さず、つきつけられない。
+
+    例: ある証言の行を「ゆさぶる」と、被告が口をすべらせて新しい証拠品になる。
+    """
+
+    evidence_id: str
+    kind: Literal["probe", "present"] = "probe"
+    """手に入れる行動の種類(ゆさぶる / つきつける)。"""
+    line_id: str
+    """その行動の対象の証言の行。"""
+    presented_evidence_id: str | None = None
+    """つきつけるで手に入れる場合の、つきつける証拠品。"""
+
+    def triggered_by(self, tried: Collection[tuple[str, str, str | None]]) -> bool:
+        """選択済みの行動 (kind, line_id, evidence_id) に、手に入れる行動が含まれるか。"""
+        evidence = self.presented_evidence_id if self.kind == "present" else None
+        return (self.kind, self.line_id, evidence) in tried
 
 
 class TestimonyLine(_Frozen):
@@ -228,6 +260,10 @@ class CasePublic(_Frozen):
     testimonies: list[PublicTestimony]
     defendant_id: str | None = None
     """被告(証言する人物)。None は被告を持たない旧形式の事件。"""
+    prosecutor_id: str | None = None
+    """検察官(プレイヤー)を演じる人物。None なら名前のない検察官。"""
+    prosecutor_speech: Literal["plain", "cat"] = "plain"
+    """検察官の台詞(定型文)の口調。cat は猫言葉(語尾に「にゃ」)。"""
 
 
 class Case(_Frozen):
@@ -245,20 +281,44 @@ class Case(_Frozen):
     witness_scripts: list[WitnessScript]
     contradictions: list[Contradiction]
     research: ResearchReport
+    prosecutor_id: str | None = None
+    """検察官(プレイヤー)を演じる人物(公開。名札に名前を出す)。None なら名前のない検察官。"""
+    prosecutor_speech: Literal["plain", "cat"] = "plain"
+    """検察官の台詞(画面の定型文)の口調(公開)。cat は猫言葉。"""
+    evidence_unlocks: list[EvidenceUnlock] = []
+    verdict: CaseVerdict | None = None
+    """判決の刑罰と被告の反応(非公開。閉廷後の解説で出す)。None なら画面の定型文を使う。"""
+    """尋問の中で手に入る証拠品(非公開。手に入るまで法廷記録に出さない)。"""
     defendant_id: str | None = None
     """被告。検察官の尋問に答え、嘘をつくのは被告だけ(ADR 0017)。None は旧形式の事件
     (複数の証人が証言する。読み込めるが、整合性チェックには通らない)。"""
     generation: CaseGeneration | None = None
     validation: CaseValidation | None = None
 
-    def public_view(self) -> CasePublic:
+    @property
+    def locked_evidence_ids(self) -> set[str]:
+        """尋問の中で手に入る(初めは持っていない)証拠品。"""
+        return {u.evidence_id for u in self.evidence_unlocks}
+
+    def available_evidence_ids(self, tried: Collection[tuple[str, str, str | None]]) -> set[str]:
+        """選択済みの行動 (kind, line_id, evidence_id) のあとで、手元にある証拠品。"""
+        unlocked = {u.evidence_id for u in self.evidence_unlocks if u.triggered_by(tried)}
+        locked = self.locked_evidence_ids - unlocked
+        return {e.id for e in self.evidence if e.id not in locked}
+
+    def public_view(self, available: Collection[str] | None = None) -> CasePublic:
+        """公開情報。証拠品は手元にあるものだけ。
+
+        `available` を省くと、初めから持っているものだけにする。
+        """
+        shown = set(available) if available is not None else self.available_evidence_ids(())
         return CasePublic(
             id=self.id,
             title=self.title,
             overview=self.overview,
             question=PublicQuestion(text=self.question.text, options=self.question.options),
             people=self.people,
-            evidence=self.evidence,
+            evidence=[e for e in self.evidence if e.id in shown],
             testimonies=[
                 PublicTestimony(
                     id=t.id,
@@ -269,6 +329,8 @@ class Case(_Frozen):
                 for t in self.testimonies
             ],
             defendant_id=self.defendant_id,
+            prosecutor_id=self.prosecutor_id,
+            prosecutor_speech=self.prosecutor_speech,
         )
 
     @property

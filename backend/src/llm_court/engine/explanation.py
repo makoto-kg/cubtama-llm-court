@@ -47,4 +47,5 @@ def build_explanation(case: Case) -> Explanation:
         answer=case.question.options[case.question.answer_index],
         items=items,
         learning_points=case.learning_points,
+        verdict=case.verdict,
     )

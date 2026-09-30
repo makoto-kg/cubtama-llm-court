@@ -63,3 +63,12 @@ describe("shouldShowOpening", () => {
     expect(shouldShowOpening({ ...view, exchanges: [{} as (typeof view.exchanges)[number]] })).toBe(false);
   });
 });
+
+describe("検察官の宣言の口調", () => {
+  it("猫言葉の事件では「にゃ」で宣言する", () => {
+    const view = toTrialView(start(makePack(), "seed"));
+    const prosecutor = (v: typeof view) => openingScript(v).find((l) => l.speaker === "prosecutor")!.text;
+    expect(prosecutor(view)).not.toContain("にゃ");
+    expect(prosecutor({ ...view, case: { ...view.case, prosecutor_speech: "cat" } })).toContain("にゃ");
+  });
+});

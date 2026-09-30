@@ -43,7 +43,10 @@ class TrialAnalyst:
         `tried` は選択済みの (kind, line_id, evidence_id)。同じ行動は二度並べない。
         """
         rng = random.Random(seed)
-        evidence = {e.id: e for e in case.evidence}
+        # つきつけられるのは手元にある証拠品だけ
+        # (尋問の中で手に入る証拠品は、手に入れてから。ADR 0019)
+        available = case.available_evidence_ids(tried)
+        evidence = {e.id: e for e in case.evidence if e.id in available}
         lines = {line.id: line for line in testimony.lines}
         contradictions = [
             c for c in case.contradictions if c.testimony_line_id in lines and c.id not in solved
@@ -51,6 +54,18 @@ class TrialAnalyst:
         solved_lines = {c.testimony_line_id for c in case.contradictions if c.id in solved}
         options: list[TrialOption] = []
         used: set[tuple[str, str, str | None]] = set(tried)
+        # まだ証拠品を手に入れていない行動は、無作為に選ばず必ず並べる(見逃して詰まらないように)
+        unlock_actions = [
+            u
+            for u in case.evidence_unlocks
+            if u.line_id in lines and u.line_id not in solved_lines and not u.triggered_by(tried)
+        ]
+        forced_probes = {u.line_id for u in unlock_actions if u.kind == "probe"}
+        forced_presents = {
+            (u.line_id, u.presented_evidence_id)
+            for u in unlock_actions
+            if u.kind == "present" and u.presented_evidence_id is not None
+        }
 
         def present(
             line_id: str,
@@ -94,20 +109,25 @@ class TrialAnalyst:
             if line_id not in solved_lines
             for evidence_id in evidence
             if (line_id, evidence_id) not in correct
+            and (line_id, evidence_id) not in forced_presents
             and ("present", line_id, evidence_id) not in used
         ]
         rng.shuffle(pairs)
         for line_id, evidence_id in pairs[: self._mode.distractor_options]:
+            present(line_id, evidence_id, "weak")
+        for line_id, evidence_id in sorted(forced_presents):
             present(line_id, evidence_id, "weak")
 
         # 3. ゆさぶる(嘘の行を優先せず、未解決の行から無作為に選ぶ)
         probe_lines = [
             line_id
             for line_id in lines
-            if line_id not in solved_lines and ("probe", line_id, None) not in used
+            if line_id not in solved_lines
+            and line_id not in forced_probes
+            and ("probe", line_id, None) not in used
         ]
         rng.shuffle(probe_lines)
-        for line_id in probe_lines[: self._mode.probe_options]:
+        for line_id in probe_lines[: self._mode.probe_options] + sorted(forced_probes):
             options.append(
                 TrialOption(
                     id="",

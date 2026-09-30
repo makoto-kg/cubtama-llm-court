@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useState } from "react";
 
 import { useOfflineTrial } from "@/hooks/useOffline";
 import { toTrialView } from "@/lib/offline/engine";
 import { useOfflineStore } from "@/store/offline";
 
+import { ConfirmDialog } from "./ConfirmDialog";
 import { TrialBoard } from "./TrialScreen";
 
 function downloadObjections(caseId: string, objections: unknown[]) {
@@ -26,6 +28,7 @@ export function OfflineTrialScreen() {
   const caseId = useSearchParams().get("case");
   useOfflineTrial(caseId);
   const { state, streaming, cutIn, error, choose, answer, object, restart, clearCutIn } = useOfflineStore();
+  const [confirmRestart, setConfirmRestart] = useState(false);
 
   if (!caseId) {
     return (
@@ -47,9 +50,7 @@ export function OfflineTrialScreen() {
         </button>
       )}
       <button
-        onClick={() => {
-          if (finished || window.confirm("最初からやり直しますか?(進行は消えます)")) restart();
-        }}
+        onClick={() => (finished ? restart() : setConfirmRestart(true))}
         className="rounded border px-2 py-0.5"
       >
         やり直す
@@ -61,6 +62,17 @@ export function OfflineTrialScreen() {
   );
   return (
     <div className="space-y-3">
+      <ConfirmDialog
+        open={confirmRestart}
+        title="最初からやり直しますか?"
+        message="この事件の進行は消えます。開廷からやり直します。"
+        confirmLabel="やり直す"
+        onConfirm={() => {
+          setConfirmRestart(false);
+          restart();
+        }}
+        onCancel={() => setConfirmRestart(false)}
+      />
       <p className="hidden text-xs lg:block">
         <span className="rounded bg-emerald-900/50 px-2 py-1">
           {scripted ? "オフライン(台本の応答)" : "オフライン(事前シミュレーションの応答)"}

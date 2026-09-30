@@ -174,3 +174,15 @@ describe("prosecutorLine", () => {
     expect(text).toContain(`${"あ".repeat(27)}…`);
   });
 });
+
+describe("prosecutorLine の口調", () => {
+  it("猫言葉の事件では、どの言い回しも「にゃ」で話す", () => {
+    for (const kind of ["probe", "present"] as const) {
+      for (const n of [0, 1, 2]) {
+        const text = prosecutorLine(option("x", kind, "L1"), "昨日は家にいました", "日程表", n, "cat");
+        expect(text).toContain("にゃ");
+      }
+    }
+    expect(prosecutorLine(option("x", "probe", "L1"), "昨日は家にいました", null, 0)).not.toContain("にゃ");
+  });
+});

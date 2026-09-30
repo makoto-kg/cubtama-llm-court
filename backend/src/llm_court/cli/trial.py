@@ -184,7 +184,8 @@ class TrialLoop:
             "番号を選んでください(e で証拠品、q で中断)", [*answers, "e", QUIT]
         )
         if answer == "e":
-            _print_evidence(case)
+            tried = {(c.option.kind, c.option.line_id, c.option.evidence_id) for c in state.choices}
+            _print_evidence(case, case.available_evidence_ids(tried))
             return answer
         if answer == QUIT:
             return answer
@@ -242,9 +243,13 @@ class TrialLoop:
         print_explanation(case)
 
 
-def _print_evidence(case: Case) -> None:
+def _print_evidence(case: Case, available: set[str] | None = None) -> None:
+    """手元にある証拠品(省くと初めから持っているもの。尋問の中で手に入る証拠品は ADR 0019)。"""
+    shown = available if available is not None else case.available_evidence_ids(())
     console.rule("証拠品")
     for e in case.evidence:
+        if e.id not in shown:
+            continue
         console.print(f"[bold]{escape(e.name)}[/bold]: {escape(e.description)}")
         for d in e.details:
             console.print(f"  - {escape(d)}")
@@ -254,7 +259,8 @@ def print_explanation(case: Case) -> None:
     explanation = build_explanation(case)
     console.rule("解説")
     console.print(f"[bold]真相[/bold] {escape(explanation.truth)}")
-    console.print(f"[bold]問いの答え[/bold] {escape(explanation.answer)}")
+    if explanation.verdict is not None:
+        console.print(f"[bold]判決[/bold] {escape(explanation.verdict.sentence)}")
     lps = {lp.id: lp for lp in explanation.learning_points}
     for item in explanation.items:
         console.print()

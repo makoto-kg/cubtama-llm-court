@@ -39,8 +39,9 @@ def load_scenario(path: Path) -> ScriptedScenario:
 
 def validate_scenario(scenario: ScriptedScenario, mode: TrialMode) -> list[str]:
     """事件の整合性と、応答の過不足を調べる(問題の説明の列。空なら問題なし)。"""
-    # 台本の事件は小さくてよいので、嘘(矛盾)の数の下限だけ 1 に緩める
-    relaxed = mode.model_copy(update={"lies": (1, mode.lies[1])})
+    # 台本の事件は大きさを自由にしてよいので、嘘(矛盾)の数の範囲を緩める
+    lies = len(scenario.case.hidden_truth.lies)
+    relaxed = mode.model_copy(update={"lies": (1, max(mode.lies[1], lies))})
     problems = [f"{i.code}: {i.message}" for i in check_case(scenario.case, relaxed)]
     expected = {a.key for a in enumerate_actions(scenario.case)}
     given = set(scenario.responses)
@@ -69,7 +70,8 @@ def build_scripted_pack(scenario: ScriptedScenario, mode: TrialMode) -> OfflineP
         for action in enumerate_actions(case)
     ]
     return OfflinePack(
-        case=case.public_view(),
+        # 尋問の中で手に入る証拠品も含める(手元にあるかはブラウザが行動の列から決める)
+        case=case.public_view({e.id for e in case.evidence}),
         theme=case.theme,
         answers=pack_answers(case),
         explanation=build_explanation(case),

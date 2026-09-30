@@ -107,3 +107,44 @@ export function EvidenceOverlay({
     </div>
   );
 }
+
+type CaseEvidence = TrialView["case"]["evidence"][number];
+
+/**
+ * 尋問の中で新しい証拠品を手に入れたときの知らせ(ADR 0019)。法廷の画面に重ねて出し、
+ * 「法廷記録に加える」で閉じる(閉じるまで次の操作はできない)。
+ */
+export function NewEvidenceNotice({ evidence, onClose }: { evidence: CaseEvidence[]; onClose: () => void }) {
+  if (evidence.length === 0) return null;
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-end justify-center bg-black/55 sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-label="新しい証拠品"
+    >
+      <div className="evidence-sheet w-full max-w-lg space-y-3 rounded-t-2xl border-t-4 border-[var(--court-accent)] bg-[#241a12] p-4 shadow-2xl sm:rounded-2xl sm:border-4">
+        <p className="text-center text-xl font-black tracking-widest text-[var(--court-accent)]">証拠品を手に入れた!</p>
+        <ul className="space-y-2">
+          {evidence.map((e) => (
+            <li key={e.id} className="rounded-lg border border-[var(--court-accent)]/70 bg-black/30 p-3">
+              <p className="font-bold">{e.name}</p>
+              <p className="text-sm opacity-80">{e.description}</p>
+              <ul className="mt-1 list-disc pl-5 text-sm">
+                {e.details.map((d, i) => (
+                  <li key={i}>{d}</li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+        <button
+          onClick={onClose}
+          className="w-full rounded-lg bg-[var(--court-accent)] py-3 font-bold text-black"
+        >
+          法廷記録に加える
+        </button>
+      </div>
+    </div>
+  );
+}

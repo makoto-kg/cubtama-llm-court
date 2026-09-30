@@ -10,6 +10,7 @@ from llm_court.domain import (
     ContradictionSolved,
     ResearchReport,
     TrialChoiceMade,
+    TrialFinished,
     TrialOption,
 )
 from llm_court.engine.debate import InvalidChoiceError, SessionStateError
@@ -162,15 +163,15 @@ async def test_full_trial(prompts: PromptLoader, store: EventStore, case: Case) 
     systems = [r.messages[0].content for r in responder.requests["text"]]
     assert "速報を読んでいる" in systems[0]  # 隠している事実は台本として渡す
 
+    # 全矛盾を解いたら、最後の問いを出さずに閉廷する(ADR 0020)
     await engine.choose(find(engine, "strong").id)
-    assert engine.state.stage == "answering"
-    assert engine.state.pending_choices is None
-    with pytest.raises(SessionStateError):
-        await engine.advance()
-
-    assert await engine.answer(case.question.answer_index)
     state = engine.state
     assert state.result == "solved" and state.stage == "finished"
+    assert state.pending_choices is None and state.answer is None
+    with pytest.raises(SessionStateError):
+        await engine.advance()
+    with pytest.raises(SessionStateError):
+        await engine.answer(case.question.answer_index)
 
     await engine.object("learning_point", "LP-01", "出典の引用が古い気がします")
     await engine.object("trap", trap_target_id("X-01", "CE-03"), "罠が紛らわしすぎる")
@@ -183,14 +184,22 @@ async def test_full_trial(prompts: PromptLoader, store: EventStore, case: Case) 
     assert await resumed.resume(session_id) == engine.state
 
 
-async def test_wrong_answer(prompts: PromptLoader, store: EventStore, case: Case) -> None:
+async def test_legacy_session_waiting_for_the_question_can_still_answer(
+    prompts: PromptLoader, store: EventStore, case: Case
+) -> None:
+    """全矛盾を解いて最後の問いの回答待ちで止まっている、以前のセッションは答えて閉廷できる。"""
     engine, _ = make_engine(prompts, store)
-    await engine.start(case)
+    session_id = await engine.start(case)
     for _ in case.contradictions:
         await engine.choose(find(engine, "strong").id)
+    for event in await store.load(session_id):
+        if not isinstance(event, TrialFinished):
+            await store.append("legacy", event)
+    legacy, _ = make_engine(prompts, store)
+    assert (await legacy.resume("legacy")).stage == "answering"
     wrong = (case.question.answer_index + 1) % len(case.question.options)
-    assert not await engine.answer(wrong)
-    assert engine.state.result == "wrong_answer"
+    assert not await legacy.answer(wrong)
+    assert legacy.state.result == "wrong_answer"
 
 
 async def test_penalty_ends_trial(prompts: PromptLoader, store: EventStore, case: Case) -> None:
@@ -241,9 +250,9 @@ async def test_invalid_operations(prompts: PromptLoader, store: EventStore, case
         await engine.advance()
     for _ in case.contradictions:
         await engine.choose(find(engine, "strong").id)
-    with pytest.raises(InvalidChoiceError):
-        await engine.answer(99)
-    await engine.answer(0)
+    assert engine.state.result == "solved"
+    with pytest.raises(SessionStateError):
+        await engine.answer(0)
     with pytest.raises(InvalidChoiceError):
         await engine.object("learning_point", "LP-99", "存在しない")
     with pytest.raises(ValueError):

@@ -57,6 +57,14 @@ def check_case(case: Case, mode: TrialMode) -> list[CheckIssue]:
                     "materials",
                 )
 
+    prosecutor = case.prosecutor_id
+    if prosecutor is not None and (prosecutor not in people or prosecutor == defendant):
+        add(
+            "prosecutor_reference",
+            f"検察官 {prosecutor} が人物一覧にいないか、被告と同じです",
+            "materials",
+        )
+
     # --- 真相(人物・時系列・嘘) ---
     orders = Counter(e.order for e in case.hidden_truth.timeline)
     for order, count in orders.items():
@@ -170,6 +178,49 @@ def check_case(case: Case, mode: TrialMode) -> list[CheckIssue]:
     for text in public_texts:
         if pattern.search(text):
             add("public_leak", f"公開する文に非公開の ID があります: 「{text[:40]}」", "materials")
+
+    # --- 尋問の中で手に入る証拠品(ADR 0019) ---
+    testimony_of = {line.id: i for i, t in enumerate(case.testimonies) for line in t.lines}
+    unlock_counts = Counter(u.evidence_id for u in case.evidence_unlocks)
+    for evidence_id, count in unlock_counts.items():
+        if count > 1:
+            add(
+                "duplicate_unlock",
+                f"証拠品 {evidence_id} を手に入れる行動が {count} 件あります",
+                "materials",
+            )
+    for u in case.evidence_unlocks:
+        if u.evidence_id not in evidence:
+            add("missing_evidence", f"手に入る証拠品 {u.evidence_id} がありません", "materials")
+        if u.line_id not in lines:
+            add(
+                "missing_line",
+                f"証拠品 {u.evidence_id} を手に入れる証言の行がありません",
+                "materials",
+            )
+        if u.kind == "present" and (
+            u.presented_evidence_id not in evidence
+            or u.presented_evidence_id in case.locked_evidence_ids
+        ):
+            add(
+                "unlock_reference",
+                f"証拠品 {u.evidence_id} を手に入れるためにつきつける証拠品が、"
+                "初めから手元にありません",
+                "materials",
+            )
+    unlock_line = {u.evidence_id: u.line_id for u in case.evidence_unlocks}
+    for c in case.contradictions:
+        trigger = unlock_line.get(c.evidence_id)
+        if (
+            trigger in testimony_of
+            and c.testimony_line_id in testimony_of
+            and testimony_of[trigger] > testimony_of[c.testimony_line_id]
+        ):
+            add(
+                "unreachable_unlock",
+                f"矛盾 {c.id} の証拠品は、その証言より後の証言でしか手に入りません",
+                "materials",
+            )
 
     # --- 罠 ---
     for c in case.contradictions:

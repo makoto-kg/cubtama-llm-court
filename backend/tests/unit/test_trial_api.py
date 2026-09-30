@@ -101,10 +101,6 @@ async def test_full_trial_over_api(api: Api, case: Case) -> None:
     view = await choose(api, session_id, await pick(api, session_id, "strong"))
     assert view["exchanges"][-1]["text"] == COLLAPSE_TEXT
     assert view["solved_line_ids"] == ["TS-01-2"]
-    view = await choose(api, session_id, await pick(api, session_id, "strong"))
-    assert view["stage"] == "answering" and view["status"] == "answering"
-    assert view["pending_options"] == []
-
     # 閉廷前のイベントログは非公開の情報を伏せる
     events = (await api.client.get(f"/api/sessions/{session_id}/events")).json()
     started = events[0]
@@ -120,15 +116,14 @@ async def test_full_trial_over_api(api: Api, case: Case) -> None:
         for o in e["options"]
     )
 
-    response = await api.client.post(f"/api/trials/{session_id}/answer", json={"index": 99})
-    assert response.status_code == 422
+    # 全矛盾を解いたら、最後の問いを出さずに閉廷する(ADR 0020)
+    view = await choose(api, session_id, await pick(api, session_id, "strong"))
+    assert view["status"] == "finished" and view["result"] == "solved"
+    assert view["pending_options"] == [] and view["answer_correct"] is None
     response = await api.client.post(
         f"/api/trials/{session_id}/answer", json={"index": case.question.answer_index}
     )
-    assert response.status_code == 200, response.text
-    view = response.json()
-    assert view["status"] == "finished" and view["result"] == "solved"
-    assert view["answer_correct"] is True
+    assert response.status_code == 409
     explanation = view["explanation"]
     assert [i["contradiction_id"] for i in explanation["items"]] == ["X-01", "X-02"]
     assert explanation["learning_points"][0]["sources"]

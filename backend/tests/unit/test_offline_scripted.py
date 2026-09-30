@@ -27,7 +27,12 @@ def test_tutorial_scenario_is_valid() -> None:
     assert pack.meta.source == "scripted" and pack.meta.tutorial
     assert {r.key for r in pack.responses} == {a.key for a in enumerate_actions(scenario.case)}
     collapsing = [r.key for r in pack.responses if r.should_collapse]
-    assert collapsing == ["present:TS-01-2:CE-01"]
+    assert collapsing == [
+        "present:TS-01-2:CE-04",
+        "present:TS-01-3:CE-01",
+        "present:TS-02-1:CE-05",
+        "present:TS-02-2:CE-06",
+    ]
     assert pack.explanation.items[0].traps[0].evidence_name == "飼い主さんのメモ"
 
 

@@ -58,7 +58,10 @@ export function openingScript(view: TrialView): OpeningLine[] {
     { speaker: "judge", text: "検察側、準備はよろしいですか。" },
     {
       speaker: "prosecutor",
-      text: "検察側、準備完了しています。被告の証言に潜む矛盾を、証拠品で明らかにしてみせます。",
+      text:
+        view.case.prosecutor_speech === "cat"
+          ? "検察側、準備はできてるにゃ。被告の証言のウソ、証拠品でぜんぶ暴いてみせるにゃ!"
+          : "検察側、準備完了しています。被告の証言に潜む矛盾を、証拠品で明らかにしてみせます。",
     },
     { speaker: "judge", text: standName ? `被告、${standName}さん。証言台へ。` : "被告は証言台へ。" },
     { speaker: "defendant", text: "……はい。わたしは何も偽っていません。すべてお話しします。" },

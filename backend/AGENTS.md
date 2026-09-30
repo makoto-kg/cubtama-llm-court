@@ -92,5 +92,5 @@ CLIサブコマンド(各フェーズで追加): `bench`(Phase 1)、`research`(P
 - 状態はリクエストのたびにイベントストアから再構築する。API 層で状態を保持しない
 - 手順違反は 409、存在しないセッションは 404
 - 人間 vs LLM: `POST /api/sessions` に `human_side` を付ける。人間の手番では `GET …/choices` で選択肢を取得し(強さは伏せてある)、`POST …/choices {option_id}` で選ぶ。次の人間の手番か判決まで自動で進む
-- 裁判型(ADR 0013): `GET /api/cases` → `POST /api/trials {case_id}` → `POST /api/trials/{id}/choices {option_id}`(被告の応答は SSE でストリーミング。法廷は裁判官・検察官・被告。ADR 0017)→ 全矛盾を解いたら `POST …/answer {index}` → 閉廷後の `TrialView.explanation` と `POST …/objections`
+- 裁判型(ADR 0013): `GET /api/cases` → `POST /api/trials {case_id}` → `POST /api/trials/{id}/choices {option_id}`(被告の応答は SSE でストリーミング。法廷は裁判官・検察官・被告。ADR 0017)→ 全矛盾を解くと閉廷する(ADR 0020。`POST …/answer {index}` は最後の問いの回答待ちで止まっている以前のセッション用)→ 閉廷後の `TrialView.explanation` と `POST …/objections`
   - イベントログと SSE はディベートと共通(`/api/sessions/{id}/events`・`/stream`)。閉廷までは事件の非公開の情報・選択肢の強さ・LLM 呼び出しの入出力を伏せる

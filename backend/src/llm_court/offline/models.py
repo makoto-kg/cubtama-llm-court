@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from llm_court.domain import CasePublic, DeviationCheck, Explanation, LLMCallInfo
+from llm_court.domain import CasePublic, DeviationCheck, EvidenceUnlock, Explanation, LLMCallInfo
 
 
 class _Frozen(BaseModel):
@@ -33,6 +33,8 @@ class OfflineAnswers(_Frozen):
 
     contradictions: list[OfflineContradiction]
     answer_index: int
+    unlocks: list[EvidenceUnlock] = []
+    """尋問の中で手に入る証拠品と、手に入れる行動(ADR 0019)。"""
 
 
 class OfflineMode(_Frozen):

@@ -16,6 +16,9 @@ export const SPEAKER_NAMES = {
   negative: "否定側",
 } as const;
 
+/** 裁判型の裁判官の名前(どの事件でも同じ人物。立ち絵は `ASSETS.judge`)。 */
+export const JUDGE_NAME = "アヤ";
+
 /** 裁判型の法廷に立つ 3 人(ADR 0017)。検察官はプレイヤー。 */
 export const TRIAL_ROLE_NAMES = {
   judge: "裁判官",

@@ -26,8 +26,11 @@ const TESTIMONIES = [
 ];
 const CORRECT = new Set([presentKey("TS-01-2", "CE-01"), presentKey("TS-02-2", "CE-02")]);
 
-/** テスト用の小さなパック(矛盾 X-01: TS-01-2 × CE-01、X-02: TS-02-2 × CE-02)。 */
-export function makePack(gauge = 5): OfflinePack {
+/**
+ * テスト用の小さなパック(矛盾 X-01: TS-01-2 × CE-01、X-02: TS-02-2 × CE-02)。
+ * `unlocks` で、尋問の中で手に入る証拠品を指定できる。
+ */
+export function makePack(gauge = 5, unlocks: OfflinePack["answers"]["unlocks"] = []): OfflinePack {
   const responses: OfflinePack["responses"] = [];
   for (const t of TESTIMONIES.slice(1)) {
     for (const line of t.lines) {
@@ -62,6 +65,7 @@ export function makePack(gauge = 5): OfflinePack {
       evidence: EVIDENCE.map((id, i) => ({ id, name: `証拠品${i + 1}`, description: "", details: [] })),
       testimonies: TESTIMONIES,
       defendant_id: "P-02",
+      prosecutor_speech: "plain",
     },
     answers: {
       contradictions: [
@@ -74,6 +78,7 @@ export function makePack(gauge = 5): OfflinePack {
         { id: "X-02", testimony_line_id: "TS-02-2", evidence_id: "CE-02", traps: [] },
       ],
       answer_index: 1,
+      unlocks,
     },
     explanation: {
       title: "給付事業報告書事件",

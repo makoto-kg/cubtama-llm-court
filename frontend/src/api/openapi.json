@@ -1679,6 +1679,44 @@
           "research": {
             "$ref": "#/components/schemas/ResearchReport"
           },
+          "prosecutor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prosecutor Id"
+          },
+          "prosecutor_speech": {
+            "type": "string",
+            "enum": [
+              "plain",
+              "cat"
+            ],
+            "title": "Prosecutor Speech",
+            "default": "plain"
+          },
+          "evidence_unlocks": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceUnlock"
+            },
+            "type": "array",
+            "title": "Evidence Unlocks",
+            "default": []
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseVerdict"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "defendant_id": {
             "anyOf": [
               {
@@ -1868,6 +1906,26 @@
               }
             ],
             "title": "Defendant Id"
+          },
+          "prosecutor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prosecutor Id"
+          },
+          "prosecutor_speech": {
+            "type": "string",
+            "enum": [
+              "plain",
+              "cat"
+            ],
+            "title": "Prosecutor Speech",
+            "default": "plain"
           }
         },
         "type": "object",
@@ -2053,6 +2111,25 @@
           "min_steps"
         ],
         "title": "CaseValidation"
+      },
+      "CaseVerdict": {
+        "properties": {
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "defendant_reaction": {
+            "type": "string",
+            "title": "Defendant Reaction"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sentence",
+          "defendant_reaction"
+        ],
+        "title": "CaseVerdict",
+        "description": "全矛盾を解いたあとの判決(ADR 0020)。裁判官が刑罰を言い渡し、被告が反応する。"
       },
       "CheckIssue": {
         "properties": {
@@ -3172,6 +3249,45 @@
         "title": "EvidenceSample",
         "description": "同梱の捜査結果(ブラウザから証拠品として選べる)。"
       },
+      "EvidenceUnlock": {
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "title": "Evidence Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "probe",
+              "present"
+            ],
+            "title": "Kind",
+            "default": "probe"
+          },
+          "line_id": {
+            "type": "string",
+            "title": "Line Id"
+          },
+          "presented_evidence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presented Evidence Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "line_id"
+        ],
+        "title": "EvidenceUnlock",
+        "description": "尋問の中で手に入る証拠品(ADR 0019)。\n\n決まった行動を取るまで、法廷記録に出さず、つきつけられない。\n\n例: ある証言の行を「ゆさぶる」と、被告が口をすべらせて新しい証拠品になる。"
+      },
       "Explanation": {
         "properties": {
           "title": {
@@ -3203,6 +3319,16 @@
             },
             "type": "array",
             "title": "Learning Points"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseVerdict"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -6259,6 +6385,14 @@
           "answer_index": {
             "title": "Answer Index",
             "type": "integer"
+          },
+          "unlocks": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvidenceUnlock"
+            },
+            "title": "Unlocks",
+            "type": "array"
           }
         },
         "required": [

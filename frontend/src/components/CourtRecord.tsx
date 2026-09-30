@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import type { TrialView } from "@/api/client";
 import { STRENGTH_LABELS } from "@/lib/labels";
-import { personName } from "@/lib/trial";
+import { speakerLabel } from "@/lib/roles";
 
 type Tab = "people" | "overview" | "log";
 
@@ -97,7 +97,7 @@ export function ExchangeLog({ view, reveal }: { view: TrialView; reveal: boolean
               {x.solved && " — 証言が崩れた"}
             </p>
             <p>
-              {personName(view, x.witness_id)}: {x.text}
+              {speakerLabel(view, x.witness_id)}: {x.text}
             </p>
             {reveal && x.check && (
               <p className={`mt-1 text-xs ${x.check.deviations.length ? "text-red-300" : "text-emerald-300"}`}>
