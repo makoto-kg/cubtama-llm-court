@@ -137,7 +137,8 @@ class TimelineDraft(BaseModel):
 
 
 class LieDraft(BaseModel):
-    witness_key: str
+    """被告がつく嘘(嘘をつくのは被告だけ。ADR 0017)。"""
+
     false_claim: str = Field(min_length=5)
     truth_event_key: str
     learning_point_ids: list[str] = Field(min_length=1)
@@ -146,15 +147,22 @@ class LieDraft(BaseModel):
 class HiddenTruthOutput(BaseModel):
     summary: str = Field(min_length=10)
     people: list[PersonDraft] = Field(min_length=2)
+    defendant_key: str = Field(
+        min_length=1, description="被告の人物の key(証言し、嘘をつくのは被告だけ)"
+    )
     timeline: list[TimelineDraft] = Field(min_length=3)
     lies: list[LieDraft] = Field(min_length=1)
 
 
 def to_hidden_truth(
     output: HiddenTruthOutput, learning_points: Sequence[LearningPoint]
-) -> tuple[list[Person], HiddenTruth]:
+) -> tuple[list[Person], HiddenTruth, str]:
+    """人物・真相と、被告の ID を返す。"""
     problems: list[str] = []
     person_ids = {p.key: f"P-{i:02d}" for i, p in enumerate(output.people, start=1)}
+    defendant_id = person_ids.get(output.defendant_key)
+    if defendant_id is None:
+        problems.append(f"被告 {output.defendant_key} が人物一覧にありません")
     people = [
         Person(id=person_ids[p.key], name=p.name, role=p.role, description=p.description)
         for p in output.people
@@ -179,9 +187,6 @@ def to_hidden_truth(
     lp_ids = {lp.id for lp in learning_points}
     lies: list[Lie] = []
     for i, draft in enumerate(output.lies, start=1):
-        if draft.witness_key not in person_ids:
-            problems.append(f"嘘 {i} の証人 {draft.witness_key} が人物一覧にありません")
-            continue
         if draft.truth_event_key not in event_ids:
             problems.append(f"嘘 {i} の実際の出来事 {draft.truth_event_key} が時系列にありません")
             continue
@@ -192,7 +197,7 @@ def to_hidden_truth(
         lies.append(
             Lie(
                 id=f"L-{len(lies) + 1:02d}",
-                witness_id=person_ids[draft.witness_key],
+                witness_id=defendant_id or "",
                 false_claim=draft.false_claim,
                 truth_event_id=event_ids[draft.truth_event_key],
                 learning_point_ids=refs,
@@ -203,14 +208,14 @@ def to_hidden_truth(
         problems.append(
             f"学習ポイント {lp_id} を見抜くのに使う嘘がありません(すべての学習ポイントを使う)"
         )
-    if problems:
+    if problems or defendant_id is None:
         raise DraftError(problems)
     names = {p.key: p.name for p in output.people}
     summary = replace_keys(output.summary, names)
     lies = [
         lie.model_copy(update={"false_claim": replace_keys(lie.false_claim, names)}) for lie in lies
     ]
-    return people, HiddenTruth(summary=summary, timeline=timeline, lies=lies)
+    return people, HiddenTruth(summary=summary, timeline=timeline, lies=lies), defendant_id
 
 
 # --- 3. 資料(証拠品・証言・台本・矛盾・問い) ---
@@ -229,13 +234,15 @@ class TestimonyLineDraft(BaseModel):
 
 
 class TestimonyDraft(BaseModel):
-    witness_id: str
+    """被告の証言(証言するのは被告だけ)。"""
+
     title: str = Field(min_length=1)
     lines: list[TestimonyLineDraft] = Field(min_length=2)
 
 
 class ScriptDraft(BaseModel):
-    witness_id: str
+    """被告の台本。"""
+
     persona: str = Field(min_length=1)
     hidden_facts: list[str]
 
@@ -246,7 +253,7 @@ class ContradictionDraft(BaseModel):
     learning_point_ids: list[str] = Field(min_length=1)
     explanation: str = Field(min_length=10)
     witness_reaction: str = Field(
-        min_length=1, description="証拠品をつきつけられて嘘が崩れたときの証人の反応"
+        min_length=1, description="証拠品をつきつけられて嘘が崩れたときの被告の反応"
     )
 
 
@@ -262,7 +269,7 @@ class MaterialsOutput(BaseModel):
     question: QuestionDraft
     evidence: list[EvidenceDraft] = Field(min_length=2)
     testimonies: list[TestimonyDraft] = Field(min_length=1)
-    scripts: list[ScriptDraft] = Field(min_length=1)
+    script: ScriptDraft
     contradictions: list[ContradictionDraft] = Field(min_length=1)
 
 
@@ -281,9 +288,11 @@ def to_materials(
     people: Sequence[Person],
     truth: HiddenTruth,
     learning_points: Sequence[LearningPoint],
+    defendant_id: str,
 ) -> Materials:
     problems: list[str] = []
-    person_ids = {p.id for p in people}
+    if defendant_id not in {p.id for p in people}:
+        problems.append(f"被告 {defendant_id} が人物一覧にありません")
     lie_by_id = {lie.id: lie for lie in truth.lies}
     lp_ids = {lp.id for lp in learning_points}
     evidence_ids = {e.key: f"CE-{i:02d}" for i, e in enumerate(output.evidence, start=1)}
@@ -296,8 +305,6 @@ def to_materials(
 
     testimonies: list[Testimony] = []
     for i, t in enumerate(output.testimonies, start=1):
-        if t.witness_id not in person_ids:
-            problems.append(f"証言 {i} の証人 {t.witness_id} が人物一覧にありません")
         lines: list[TestimonyLine] = []
         for j, line in enumerate(t.lines, start=1):
             if line.lie_id is not None and line.lie_id not in lie_by_id:
@@ -310,7 +317,7 @@ def to_materials(
                 )
             )
         testimonies.append(
-            Testimony(id=f"TS-{i:02d}", witness_id=t.witness_id, title=t.title, lines=lines)
+            Testimony(id=f"TS-{i:02d}", witness_id=defendant_id, title=t.title, lines=lines)
         )
     line_by_lie = {
         line.lie_id: line.id for t in testimonies for line in t.lines if line.lie_id is not None
@@ -361,27 +368,22 @@ def to_materials(
         )
 
     # 台本の崩れる条件は矛盾から組み立てる(証拠品と反応を二重に書かせない)
-    scripts: list[WitnessScript] = []
-    for script in output.scripts:
-        if script.witness_id not in person_ids:
-            problems.append(f"台本の証人 {script.witness_id} が人物一覧にありません")
-            continue
-        lie_ids = [lie.id for lie in truth.lies if lie.witness_id == script.witness_id]
-        scripts.append(
-            WitnessScript(
-                witness_id=script.witness_id,
-                persona=script.persona,
-                hidden_facts=script.hidden_facts,
-                lie_ids=lie_ids,
-                collapse_conditions=[
-                    CollapseCondition(
-                        lie_id=c.lie_id, evidence_id=c.evidence_id, reaction=reactions[c.lie_id]
-                    )
-                    for c in contradictions
-                    if c.lie_id in lie_ids
-                ],
-            )
+    lie_ids = [lie.id for lie in truth.lies]
+    scripts = [
+        WitnessScript(
+            witness_id=defendant_id,
+            persona=output.script.persona,
+            hidden_facts=output.script.hidden_facts,
+            lie_ids=lie_ids,
+            collapse_conditions=[
+                CollapseCondition(
+                    lie_id=c.lie_id, evidence_id=c.evidence_id, reaction=reactions[c.lie_id]
+                )
+                for c in contradictions
+                if c.lie_id in lie_ids
+            ],
         )
+    ]
 
     q = output.question
     if not 0 <= q.answer_index < len(q.options):

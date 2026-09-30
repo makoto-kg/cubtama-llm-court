@@ -4,7 +4,7 @@ import { presentKey, probeKey } from "../engine";
 
 const EVIDENCE = ["CE-01", "CE-02", "CE-03", "CE-04"];
 const TESTIMONIES = [
-  { id: "TS-00", witness_id: "P-01", title: "矛盾のない証言", lines: [{ id: "TS-00-1", text: "何もありません" }] },
+  { id: "TS-00", witness_id: "P-02", title: "矛盾のない証言", lines: [{ id: "TS-00-1", text: "何もありません" }] },
   {
     id: "TS-01",
     witness_id: "P-02",
@@ -16,7 +16,7 @@ const TESTIMONIES = [
   },
   {
     id: "TS-02",
-    witness_id: "P-03",
+    witness_id: "P-02",
     title: "予算担当の証言",
     lines: [
       { id: "TS-02-1", text: "試算は会議室で行いました" },
@@ -55,12 +55,13 @@ export function makePack(gauge = 5): OfflinePack {
       overview: "概要",
       question: { text: "誰が偽ったか", options: ["監査役", "担当者", "誰も"] },
       people: [
-        { id: "P-01", name: "朝霧 透", role: "依頼人", description: "" },
-        { id: "P-02", name: "白波 恵", role: "証人", description: "" },
-        { id: "P-03", name: "黒川 誠", role: "証人", description: "" },
+        { id: "P-01", name: "朝霧 透", role: "監査役", description: "" },
+        { id: "P-02", name: "白波 恵", role: "被告(担当者)", description: "事業の担当者" },
+        { id: "P-03", name: "黒川 誠", role: "関係者", description: "" },
       ],
       evidence: EVIDENCE.map((id, i) => ({ id, name: `証拠品${i + 1}`, description: "", details: [] })),
       testimonies: TESTIMONIES,
+      defendant_id: "P-02",
     },
     answers: {
       contradictions: [

@@ -88,7 +88,7 @@ export function ExaminationPanel({
       </div>
 
       {running ? (
-        <p className="animate-pulse py-3 text-center text-sm opacity-80">証人が答えています…</p>
+        <p className="animate-pulse py-3 text-center text-sm opacity-80">被告が答えています…</p>
       ) : isSolved ? (
         <p className="py-3 text-center text-sm text-emerald-300">この証言は崩れました。ほかの行を調べましょう</p>
       ) : (

@@ -144,7 +144,7 @@ class OfflineSimulator:
             if _deviation_count(check) == 0:
                 break
         if best is None:
-            raise RuntimeError(f"証人の応答が空でした({action.key})")
+            raise RuntimeError(f"被告の応答が空でした({action.key})")
         return best.model_copy(update={"attempts": attempts})
 
     async def build(self, case: Case, on_progress: ProgressFn | None = None) -> OfflinePack:
@@ -156,7 +156,7 @@ class OfflineSimulator:
             response = await self._respond(case, action)
             done += 1
             if on_progress is not None:
-                on_progress(f"{case.id}: 証人の応答 {done}/{len(actions)}")
+                on_progress(f"{case.id}: 被告の応答 {done}/{len(actions)}")
             return response
 
         # 並列度は LLM 層のプロバイダごとのセマフォで制限される

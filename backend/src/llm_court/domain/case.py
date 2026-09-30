@@ -1,5 +1,6 @@
 """裁判型の事件(架空の事件・真相・証拠品・証言・台本・矛盾・学習ポイント)。
 
+法廷に立つのは裁判官・検察官(プレイヤー)・被告の 3 人で、証言するのは被告だけ(ADR 0017)。
 `Case` は非公開の情報(真相・台本・矛盾・正解・学習ポイント)を含む。プレイヤーと solver に
 渡すのは `Case.public_view()` の `CasePublic` だけ。
 """
@@ -225,6 +226,8 @@ class CasePublic(_Frozen):
     people: list[Person]
     evidence: list[CaseEvidence]
     testimonies: list[PublicTestimony]
+    defendant_id: str | None = None
+    """被告(証言する人物)。None は被告を持たない旧形式の事件。"""
 
 
 class Case(_Frozen):
@@ -242,6 +245,9 @@ class Case(_Frozen):
     witness_scripts: list[WitnessScript]
     contradictions: list[Contradiction]
     research: ResearchReport
+    defendant_id: str | None = None
+    """被告。検察官の尋問に答え、嘘をつくのは被告だけ(ADR 0017)。None は旧形式の事件
+    (複数の証人が証言する。読み込めるが、整合性チェックには通らない)。"""
     generation: CaseGeneration | None = None
     validation: CaseValidation | None = None
 
@@ -262,6 +268,7 @@ class Case(_Frozen):
                 )
                 for t in self.testimonies
             ],
+            defendant_id=self.defendant_id,
         )
 
     @property

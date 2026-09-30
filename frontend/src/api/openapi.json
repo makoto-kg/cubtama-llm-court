@@ -1679,6 +1679,17 @@
           "research": {
             "$ref": "#/components/schemas/ResearchReport"
           },
+          "defendant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Defendant Id"
+          },
           "generation": {
             "anyOf": [
               {
@@ -1846,6 +1857,17 @@
             },
             "type": "array",
             "title": "Testimonies"
+          },
+          "defendant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Defendant Id"
           }
         },
         "type": "object",

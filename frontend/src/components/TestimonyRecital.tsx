@@ -15,7 +15,7 @@ type Testimony = TrialView["case"]["testimonies"][number];
 const AUTO_ADVANCE_MS = 1400;
 
 /**
- * 証言の読み上げ。「証言開始」→ 証人が証言の行を 1 行ずつ話す → 「尋問開始」。
+ * 証言の読み上げ。「証言開始」→ 被告が証言の行を 1 行ずつ話す → 「尋問開始」。
  * 読み上げが終わるまで尋問の操作は出さない(`onFinish` で尋問へ移る)。表示だけで、ゲームの状態は変えない。
  */
 export function TestimonyRecital({
@@ -50,7 +50,7 @@ export function TestimonyRecital({
   return (
     <div className="space-y-2">
       <CutInView cutIn={cutIn} onDone={clearCutIn} />
-      <CourtShot kind="witness" alt={witnessName} speaking={dialogue.typing}>
+      <CourtShot kind="stand" alt={witnessName} speaking={dialogue.typing}>
         <div className="absolute inset-x-0 top-3 text-center">
           <span className="testimony-title rounded px-4 py-1 text-sm font-bold sm:text-base">
             〜 {testimony.title} 〜

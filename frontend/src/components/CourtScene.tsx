@@ -3,34 +3,34 @@ import type { ReactNode } from "react";
 
 import { ASSETS } from "@/assets/manifest";
 
-/** 法廷の「カメラ」。話す人ごとに画面を切り替える(ADV の定番の見せ方。素材・意匠はオリジナル)。 */
-export type CourtShotKind = "judge" | "plaintiff" | "defendant" | "witness";
+/**
+ * 法廷の「カメラ」。話す人ごとに画面を切り替える(ADV の定番の見せ方。素材・意匠はオリジナル)。
+ * 法廷に立つのは裁判官・検察官・被告の 3 人。被告は証言台(stand)で証言する(ADR 0017)。
+ */
+export type CourtShotKind = "judge" | "prosecutor" | "stand";
 
 const FIGURE: Record<CourtShotKind, { src: string; width: number; height: number; align: string }> = {
   judge: { src: ASSETS.judge, width: 190, height: 228, align: "justify-center" },
-  plaintiff: { src: ASSETS.plaintiff, width: 210, height: 273, align: "justify-start pl-[12%]" },
-  defendant: { src: ASSETS.defendant, width: 210, height: 273, align: "justify-end pr-[12%]" },
-  witness: { src: ASSETS.witness, width: 200, height: 260, align: "justify-center" },
+  prosecutor: { src: ASSETS.prosecutor, width: 210, height: 273, align: "justify-start pl-[12%]" },
+  stand: { src: ASSETS.witness, width: 200, height: 260, align: "justify-center" },
 };
 
 /** 背景の壁。席ごとに色味を変える。 */
 const WALL: Record<CourtShotKind, string> = {
   judge: "court-wall-judge",
-  plaintiff: "court-wall-plaintiff",
-  defendant: "court-wall-defendant",
-  witness: "court-wall-witness",
+  prosecutor: "court-wall-prosecutor",
+  stand: "court-wall-stand",
 };
 
-/** 手前の机(裁判長席・原告席・被告席・証言台)。 */
+/** 手前の机(裁判官席・検察官席・証言台)。 */
 function Desk({ kind }: { kind: CourtShotKind }) {
   if (kind === "judge") {
     return <div className="court-desk absolute inset-x-[8%] bottom-0 h-[44%] rounded-t-md" />;
   }
-  if (kind === "witness") {
+  if (kind === "stand") {
     return <div className="court-desk absolute inset-x-[34%] bottom-0 h-[40%] rounded-t-md" />;
   }
-  const side = kind === "plaintiff" ? "left-0 right-[38%]" : "left-[38%] right-0";
-  return <div className={`court-desk absolute bottom-0 h-[40%] ${side}`} />;
+  return <div className="court-desk absolute bottom-0 left-0 right-[38%] h-[40%]" />;
 }
 
 /** 1 人を映す法廷の画面。`children` は画面の上に重ねるもの(台詞の枠など)。 */
@@ -57,7 +57,7 @@ export function CourtShot({
             alt={alt}
             width={figure.width}
             height={figure.height}
-            className={`h-auto w-[50%] max-w-64 sm:w-[30%] ${kind === "defendant" ? "-scale-x-100" : ""} ${
+            className={`h-auto w-[50%] max-w-64 sm:w-[30%] ${
               speaking ? "speaking" : ""
             }`}
             priority

@@ -13,7 +13,7 @@ export function OfflineCaseList() {
       <div>
         <h2 className="text-lg font-bold">裁判(オフライン)</h2>
         <p className="text-xs opacity-70">
-          事前に用意した証人の応答(LLM で事前にシミュレーションしたもの、またはチュートリアルの台本)で遊びます。バックエンドや LLM サーバーは不要です。
+          事前に用意した被告の応答(LLM で事前にシミュレーションしたもの、またはチュートリアルの台本)で遊びます。バックエンドや LLM サーバーは不要です。
         </p>
       </div>
       {error && <p className="text-sm text-red-300">事件の一覧を読み込めません({error})</p>}

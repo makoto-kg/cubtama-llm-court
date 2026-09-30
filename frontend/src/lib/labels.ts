@@ -32,7 +32,7 @@ export const ROLE_LABELS: Record<string, string> = {
   advocate: "代弁者",
   judge: "裁判長",
   scenario_writer: "脚本家",
-  witness: "証人",
+  witness: "被告役",
   solver: "解答者",
 };
 

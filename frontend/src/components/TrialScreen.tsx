@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import type { LLMCallInfo, ObjectionTarget, TrialView } from "@/api/client";
+import { TRIAL_ROLE_NAMES } from "@/assets/manifest";
 import { useTrialSession } from "@/hooks/useTrialSession";
 import { llmCalls } from "@/lib/events";
 import { STRENGTH_LABELS } from "@/lib/labels";
@@ -33,7 +34,7 @@ import { ThinkingLog } from "./ThinkingLog";
 import { TrialExplanation } from "./TrialExplanation";
 import { Typewriter } from "./Typewriter";
 
-/** 裁判型の画面。証言 → 尋問(選択肢)→ 証人の応答 → 最後の問い → 解説。 */
+/** 裁判型の画面。被告の証言 → 検察官の尋問(選択肢)→ 被告の応答 → 最後の問い → 解説。 */
 export function TrialScreen() {
   const sessionId = useSearchParams().get("session");
   const actions = useTrialSession(sessionId);
@@ -130,8 +131,8 @@ export function TrialBoard({
   const [questionReady, setQuestionReady] = useState(false);
   const finished = view.status === "finished" || view.status === "aborted";
   const testimony = currentTestimony(view);
-  // 証言が始まったら、まず証人に一通り証言させてから尋問の操作を出す。
-  // 証人の応答・カットインの最中は待ち、前の応答が画面にあればタップで次の証言へ進める
+  // 証言が始まったら、まず被告に一通り証言させてから尋問の操作を出す。
+  // 被告の応答・カットインの最中は待ち、前の応答が画面にあればタップで次の証言へ進める
   const recitalNeeded = Boolean(testimony) && view.stage !== "answering" && heardId !== testimony?.id;
   const quiet = !streaming && !cutIn;
   const recitalPlaying =
@@ -139,13 +140,13 @@ export function TrialBoard({
   const recitalPending = recitalNeeded && quiet && !recitalPlaying;
   const last = view.exchanges.at(-1) ?? null;
   const witnessId = streaming?.witnessId ?? testimony?.witness_id ?? last?.witness_id ?? null;
-  const witnessName = witnessId ? personName(view, witnessId) : "証人";
+  const witnessName = witnessId ? personName(view, witnessId) : TRIAL_ROLE_NAMES.defendant;
   const solved = new Set(view.solved_line_ids);
   const lineIds = testimony?.lines.map((l) => l.id) ?? [];
   const groups = optionsByLine(lineIds, view.pending_options);
   const lineId = focusLine(lineIds, groups, lineChoice);
   const line = testimony?.lines.find((l) => l.id === lineId) ?? null;
-  // 台詞の枠: 証人の応答(ストリーミング中、または行を指し直す前の最新の応答)か、指している証言の行
+  // 台詞の枠: 被告の応答(ストリーミング中、または行を指し直す前の最新の応答)か、指している証言の行
   const replyFromLast = !streaming && last && (lineAt === null || lineAt < view.exchanges.length) ? last : null;
   const reply =
     streaming ?? (replyFromLast ? { witnessId: replyFromLast.witness_id, text: replyFromLast.text } : null);
@@ -223,7 +224,7 @@ export function TrialBoard({
     );
   } else if (recitalPending && last && testimony) {
     stage = (
-      <CourtShot kind="witness" alt={personName(view, last.witness_id)}>
+      <CourtShot kind="stand" alt={personName(view, last.witness_id)}>
         <DialogueBox name={personName(view, last.witness_id)} waiting onClick={() => setPlayId(testimony.id)}>
           <p>{replyText(last.text)}</p>
         </DialogueBox>
@@ -239,7 +240,7 @@ export function TrialBoard({
     );
   } else if (view.stage === "answering" && !questionReady && last && !streaming) {
     stage = (
-      <CourtShot kind="witness" alt={personName(view, last.witness_id)}>
+      <CourtShot kind="stand" alt={personName(view, last.witness_id)}>
         <DialogueBox
           name={personName(view, last.witness_id)}
           waiting={!holdReply}
@@ -260,8 +261,8 @@ export function TrialBoard({
     );
   } else if (view.stage === "answering" && !streaming) {
     stage = (
-      <CourtShot kind="judge" alt="裁判長">
-        <DialogueBox name="裁判長">
+      <CourtShot kind="judge" alt={TRIAL_ROLE_NAMES.judge}>
+        <DialogueBox name={TRIAL_ROLE_NAMES.judge}>
           <p>
             すべての矛盾が明らかになりました。最後に問います。
             <br />
@@ -289,7 +290,7 @@ export function TrialBoard({
     const busy = Boolean(streaming) || running || holdReply;
     const speakerName = reply ? personName(view, reply.witnessId) : witnessName;
     stage = (
-      <CourtShot kind="witness" alt={speakerName} speaking={Boolean(streaming) && !holdReply}>
+      <CourtShot kind="stand" alt={speakerName} speaking={Boolean(streaming) && !holdReply}>
         <DialogueBox
           name={speakerName}
           waiting={!busy}

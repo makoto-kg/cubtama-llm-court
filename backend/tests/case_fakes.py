@@ -36,10 +36,11 @@ LEARNING_POINTS: dict[str, Any] = {
 HIDDEN_TRUTH: dict[str, Any] = {
     "summary": "町の給付事業の担当者が、実験結果と予算の数字を偽って報告していた。",
     "people": [
-        {"key": "p1", "name": "朝霧 透", "role": "依頼人", "description": "事業の監査役"},
-        {"key": "p2", "name": "白波 恵", "role": "証人", "description": "事業の担当者"},
-        {"key": "p3", "name": "黒川 誠", "role": "証人", "description": "予算の担当者"},
+        {"key": "p1", "name": "朝霧 透", "role": "監査役", "description": "事業の監査役"},
+        {"key": "p2", "name": "白波 恵", "role": "被告(担当者)", "description": "事業の担当者"},
+        {"key": "p3", "name": "黒川 誠", "role": "関係者", "description": "予算の担当者"},
     ],
+    "defendant_key": "p2",
     "timeline": [
         {
             "key": "t1",
@@ -62,7 +63,7 @@ HIDDEN_TRUTH: dict[str, Any] = {
             "order": 3,
             "time": "4月3日",
             "location": "会議室",
-            "person_keys": ["p3"],
+            "person_keys": ["p2", "p3"],
             "description": "予算を試算する",
         },
         {
@@ -76,13 +77,11 @@ HIDDEN_TRUTH: dict[str, Any] = {
     ],
     "lies": [
         {
-            "witness_key": "p2",
             "false_claim": "実験で就業率が半減した",
             "truth_event_key": "t2",
             "learning_point_ids": ["LP-01"],
         },
         {
-            "witness_key": "p3",
             "false_claim": "年間10兆円で実施できる",
             "truth_event_key": "t3",
             "learning_point_ids": ["LP-02"],
@@ -92,10 +91,10 @@ HIDDEN_TRUTH: dict[str, Any] = {
 
 MATERIALS: dict[str, Any] = {
     "title": "給付事業報告書事件",
-    "overview": "町の給付事業の報告書に不審な点があり、監査役が関係者の証言を集めた。",
+    "overview": "町の給付事業の報告書に不審な点があり、事業の担当者が被告として法廷に立った。",
     "question": {
-        "text": "報告書を偽ったのは誰か",
-        "options": ["監査役", "事業の担当者と予算の担当者", "誰も偽っていない"],
+        "text": "被告が報告書で偽った内容は何か",
+        "options": ["監査の日程", "実験結果と予算の数字", "報告会の出席者"],
         "answer_index": 1,
     },
     "evidence": [
@@ -116,36 +115,21 @@ MATERIALS: dict[str, Any] = {
     ],
     "testimonies": [
         {
-            "witness_id": "P-02",
-            "title": "担当者の証言",
+            "title": "実験結果についての証言",
             "lines": [
                 {"text": "結果は 4 月 2 日に届きました", "lie_id": None},
                 {"text": "実験では就業率が半分に落ちました", "lie_id": "L-01"},
             ],
         },
         {
-            "witness_id": "P-03",
-            "title": "予算担当の証言",
+            "title": "予算についての証言",
             "lines": [
                 {"text": "試算は会議室で行いました", "lie_id": None},
                 {"text": "年間 10 兆円あれば全員に配れます", "lie_id": "L-02"},
             ],
         },
     ],
-    "scripts": [
-        {
-            "witness_id": "P-02",
-            "persona": "早口",
-            "hidden_facts": ["速報を読んでいる"],
-            "collapse": [{"lie_id": "L-01", "evidence_key": "e1", "reaction": "黙り込む"}],
-        },
-        {
-            "witness_id": "P-03",
-            "persona": "慎重",
-            "hidden_facts": ["桁を偽った"],
-            "collapse": [{"lie_id": "L-02", "evidence_key": "e2", "reaction": "計算をやり直す"}],
-        },
-    ],
+    "script": {"persona": "早口", "hidden_facts": ["速報を読んでいる", "桁を偽った"]},
     "contradictions": [
         {
             "lie_id": "L-01",

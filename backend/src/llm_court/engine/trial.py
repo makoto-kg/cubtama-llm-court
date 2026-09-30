@@ -283,11 +283,11 @@ class TrialEngine:
         await self._emit_calls(calls)
         text = "".join(parts).strip()
         if not text:
-            raise TrialError("証人の応答が空でした")
+            raise TrialError("被告の応答が空でした")
         should_collapse = option.contradiction_id is not None
         check = None
         if self._mode.check_deviations:
-            self._observer.on_progress("証人の応答を確かめています")
+            self._observer.on_progress("被告の応答を確かめています")
             check = await self._checker.check(
                 case=case,
                 testimony=testimony,

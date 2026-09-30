@@ -515,6 +515,8 @@ export interface components {
             /** Contradictions */
             contradictions: components["schemas"]["Contradiction"][];
             research: components["schemas"]["ResearchReport"];
+            /** Defendant Id */
+            defendant_id?: string | null;
             generation?: components["schemas"]["CaseGeneration"] | null;
             validation?: components["schemas"]["CaseValidation"] | null;
         };
@@ -580,6 +582,8 @@ export interface components {
             evidence: components["schemas"]["CaseEvidence"][];
             /** Testimonies */
             testimonies: components["schemas"]["PublicTestimony"][];
+            /** Defendant Id */
+            defendant_id?: string | null;
         };
         /** CaseQuestion */
         CaseQuestion: {

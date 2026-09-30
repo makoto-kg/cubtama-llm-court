@@ -16,14 +16,15 @@ describe("briefOverview", () => {
 });
 
 describe("openingScript", () => {
-  it("裁判長の挨拶と概要 → 原告・被告の宣言 → 審理開始の順になる", () => {
+  it("裁判官の挨拶・概要・被告の紹介 → 検察官と被告の宣言 → 審理開始の順になる", () => {
     const view = toTrialView(start(makePack(), "seed"));
     const script = openingScript(view);
     expect(script.map((l) => l.speaker)).toEqual([
       "judge",
       "judge",
       "judge",
-      "plaintiff",
+      "judge",
+      "prosecutor",
       "judge",
       "defendant",
       "judge",
@@ -33,22 +34,24 @@ describe("openingScript", () => {
     expect(script[1].text).toContain(briefOverview(view.case.overview));
   });
 
-  it("最初に呼ぶ証人は、いま尋問する証言の証人(矛盾のない証言は飛ばす)", () => {
+  it("被告は事件の defendant_id で決まり、裁判官が紹介して証言台に呼ぶ", () => {
     const view = toTrialView(start(makePack(), "seed"));
-    const witness = view.case.people.find((p) => p.id === "P-02")!.name;
-    expect(openingScript(view).at(-1)!.text).toContain(witness);
+    const defendant = defendantOf(view)!;
+    expect(defendant.id).toBe(view.case.defendant_id);
+    const script = openingScript(view);
+    expect(script[2].text).toBe(`被告は、${defendant.name}。${defendant.description}`);
+    expect(script[5].text).toContain(defendant.name);
   });
 
-  it("役割が「被告」の人物がいれば、概要の後で裁判長が被告を紹介する", () => {
+  it("被告のない旧形式の事件は、紹介を省き、最初に証言する人を証言台に呼ぶ", () => {
     const view = toTrialView(start(makePack(), "seed"));
-    const people = view.case.people.map((p, i) => (i === 0 ? { ...p, role: "被告(茶トラ猫)" } : p));
-    const script = openingScript({ ...view, case: { ...view.case, people } });
-    expect(script).toHaveLength(8);
-    expect(script[2]).toEqual({
-      speaker: "judge",
-      text: `被告は、${people[0].name}。${people[0].description}`,
-    });
-    expect(defendantOf(view)).toBeNull();
+    const people = view.case.people.map((p) => ({ ...p, role: "関係者" }));
+    const old = { ...view, case: { ...view.case, defendant_id: null, people } };
+    expect(defendantOf(old)).toBeNull();
+    const script = openingScript(old);
+    expect(script).toHaveLength(7);
+    const speaker = people.find((p) => p.id === view.case.testimonies[1].witness_id)!;
+    expect(script[4].text).toContain(speaker.name);
   });
 });
 

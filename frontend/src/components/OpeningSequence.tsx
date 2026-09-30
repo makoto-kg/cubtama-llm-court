@@ -3,16 +3,25 @@
 import { useCallback, useMemo, useState } from "react";
 
 import type { TrialView } from "@/api/client";
-import { SPEAKER_NAMES } from "@/assets/manifest";
+import { TRIAL_ROLE_NAMES } from "@/assets/manifest";
 import { useDialogue } from "@/hooks/useDialogue";
-import { OPENING_CUT_IN, openingScript } from "@/lib/opening";
+import { defendantOf, OPENING_CUT_IN, openingScript, type OpeningSpeaker } from "@/lib/opening";
 
-import { CourtShot, DialogueBox } from "./CourtScene";
+import { CourtShot, type CourtShotKind, DialogueBox } from "./CourtScene";
 import { CutInView } from "./CutIn";
 import { GameShell } from "./GameShell";
 
+/** 話す人ごとの法廷の画面。被告は証言台に立つ。 */
+const SHOT: Record<OpeningSpeaker, CourtShotKind> = { judge: "judge", prosecutor: "prosecutor", defendant: "stand" };
+
+function speakerName(speaker: OpeningSpeaker, defendantName: string | null): string {
+  if (speaker === "prosecutor") return `${TRIAL_ROLE_NAMES.prosecutor}(あなた)`;
+  if (speaker === "defendant") return defendantName ?? TRIAL_ROLE_NAMES.defendant;
+  return TRIAL_ROLE_NAMES.judge;
+}
+
 /**
- * 開廷の場面。裁判長の挨拶と事件の超概要 → 原告側・被告側の宣言 → 審理開始。
+ * 開廷の場面。裁判官の挨拶と事件の超概要・被告の紹介 → 検察官と被告の宣言 → 審理開始。
  * クリック・Enter・Space で台詞を送る(表示中なら全文を出す)。表示だけの場面で、ゲームの状態は変えない。
  */
 export function OpeningSequence({ view, onFinish }: { view: TrialView; onFinish: () => void }) {
@@ -41,10 +50,10 @@ export function OpeningSequence({ view, onFinish }: { view: TrialView; onFinish:
 
   const line = script[dialogue.index];
   if (!line) return null;
-  const name = line.speaker === "plaintiff" ? `${SPEAKER_NAMES.plaintiff}(あなた)` : SPEAKER_NAMES[line.speaker];
+  const name = speakerName(line.speaker, defendantOf(view)?.name ?? null);
   const showText = !holding || ending;
   const stage = (
-      <CourtShot kind={line.speaker} alt={name} speaking={dialogue.typing} shake={Boolean(line.gavel) && showText}>
+      <CourtShot kind={SHOT[line.speaker]} alt={name} speaking={dialogue.typing} shake={Boolean(line.gavel) && showText}>
         {line.gavel && showText && (
           <span key={dialogue.index} className="gavel-sound absolute right-[8%] top-[8%] text-4xl font-black">
             カンッ!

@@ -16,7 +16,7 @@ def build_explanation(case: Case) -> Explanation:
     items = [
         ExplanationItem(
             contradiction_id=c.id,
-            witness_name=people.get(witness_of.get(c.testimony_line_id, ""), "証人"),
+            witness_name=people.get(witness_of.get(c.testimony_line_id, ""), "被告"),
             testimony_line_id=c.testimony_line_id,
             testimony_line=lines[c.testimony_line_id].text,
             evidence_id=c.evidence_id,

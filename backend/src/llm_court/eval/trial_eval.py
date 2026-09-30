@@ -209,7 +209,7 @@ def write_trial_report(
             writer.writerow(m.model_dump())
 
     lines = [
-        "# 証人の台本逸脱率",
+        "# 被告の台本逸脱率",
         "",
         "モデル: " + ", ".join(f"{k}={v}" for k, v in sorted(models.items())),
         "",

@@ -126,6 +126,7 @@ case:
           reasoning: 戸棚が開いていたのだから、チュールを取り出したのはトラだ
           learning_point_id: LP-01
           why_tempting: 戸棚が開いていたのは事件の手がかりだが、誰が開けたか・袋にさわったかまでは示していない
+  defendant_id: P-01
   research:
     topic: チュートリアル
     created_at: "2026-09-28T00:00:00Z"

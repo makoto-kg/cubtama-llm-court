@@ -20,7 +20,7 @@ from llm_court.offline.simulate import OfflineSimulator, build_index
 from llm_court.scenario.store import CaseNotFoundError, CaseStore
 
 offline_app = typer.Typer(
-    help="完全オフラインモード(裁判型)のパック。事前に証人の応答を生成する。",
+    help="完全オフラインモード(裁判型)のパック。事前に被告の応答を生成する。",
     no_args_is_help=True,
 )
 console = Console()
@@ -73,7 +73,7 @@ def export(
         bool, typer.Option("--no-check", help="逸脱の検査をしない(作り直しもしない)")
     ] = False,
 ) -> None:
-    """事件の全行動に対する証人の応答を事前に生成し、フロントエンドだけで遊べるパックにする。"""
+    """事件の全行動に対する被告の応答を事前に生成し、フロントエンドだけで遊べるパックにする。"""
     settings = Settings()
     store = CaseStore(settings.scenario.case_dir)
     try:
@@ -95,7 +95,7 @@ def export(
     async def run() -> list[OfflinePack]:
         packs: list[OfflinePack] = []
         async with client:
-            with console.status("証人の応答を生成しています…") as status:
+            with console.status("被告の応答を生成しています…") as status:
                 for case in cases:
                     packs.append(await simulator.build(case, on_progress=status.update))
                     recorder.drain()  # 記録は各応答に入れてあるので捨てる

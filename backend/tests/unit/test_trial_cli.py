@@ -93,7 +93,7 @@ def test_eval_trial_report(env: Path, case: Case) -> None:
     out = env / "eval-out"
     result = runner.invoke(app, ["eval-trial", case.id, "--runs", "2", "--out", str(out)])
     assert result.exit_code == 0, result.output
-    assert "証人の台本逸脱率" in result.output
+    assert "被告の台本逸脱率" in result.output
     report = (out / "report.md").read_text(encoding="utf-8")
     assert "| 全体 |" in report and "逸脱した応答" not in report
     with (out / "responses.csv").open(encoding="utf-8") as f:

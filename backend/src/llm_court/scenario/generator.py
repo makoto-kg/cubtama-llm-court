@@ -128,7 +128,7 @@ class CaseGenerator:
         learning_points: Sequence[LearningPoint],
         tracker: _Tracker,
         feedback: Sequence[str] = (),
-    ) -> tuple[list[Person], HiddenTruth]:
+    ) -> tuple[list[Person], HiddenTruth, str]:
         m = self._mode
         return await self._draft(
             "hidden_truth",
@@ -156,6 +156,7 @@ class CaseGenerator:
         learning_points: Sequence[LearningPoint],
         people: Sequence[Person],
         truth: HiddenTruth,
+        defendant_id: str,
         tracker: _Tracker,
         feedback: Sequence[str] = (),
     ) -> Materials:
@@ -169,13 +170,14 @@ class CaseGenerator:
                 learning_points=learning_points,
                 people=people,
                 truth=truth,
+                defendant=next(p for p in people if p.id == defendant_id),
                 evidence_min=m.evidence[0],
                 evidence_max=m.evidence[1],
                 options_min=m.question_options[0],
                 options_max=m.question_options[1],
                 feedback=fb,
             ),
-            lambda out: to_materials(out, people, truth, learning_points),
+            lambda out: to_materials(out, people, truth, learning_points, defendant_id),
             tracker,
             feedback,
         )
@@ -238,9 +240,9 @@ class CaseGenerator:
         progress("学習ポイントを選んでいます")
         lps = await self.learning_points(theme, evidence.evidence, tracker)
         progress("真相を作っています")
-        people, truth = await self.hidden_truth(theme, lps, tracker)
+        people, truth, defendant_id = await self.hidden_truth(theme, lps, tracker)
         progress("証拠品・証言・台本を作っています")
-        materials = await self.materials(theme, lps, people, truth, tracker)
+        materials = await self.materials(theme, lps, people, truth, defendant_id, tracker)
         progress("罠を作っています")
         contradictions = await self.traps(lps, materials, tracker)
 
@@ -248,7 +250,15 @@ class CaseGenerator:
         case: Case | None = None
         for round_ in range(self._settings.max_regenerations + 1):
             case = self._assemble(
-                case_id, theme, evidence, lps, people, truth, materials, contradictions
+                case_id,
+                theme,
+                evidence,
+                lps,
+                people,
+                truth,
+                defendant_id,
+                materials,
+                contradictions,
             )
             issues = await self._check(case, progress)
             step = earliest_step(issues)
@@ -275,11 +285,13 @@ class CaseGenerator:
                 lps = await self.learning_points(theme, evidence.evidence, tracker)
                 step = "hidden_truth"
             if step == "hidden_truth":
-                people, truth = await self.hidden_truth(theme, lps, tracker, feedback)
+                people, truth, defendant_id = await self.hidden_truth(theme, lps, tracker, feedback)
                 step = "materials"
                 feedback = []
             if step == "materials":
-                materials = await self.materials(theme, lps, people, truth, tracker, feedback)
+                materials = await self.materials(
+                    theme, lps, people, truth, defendant_id, tracker, feedback
+                )
                 feedback = []
             contradictions = await self.traps(lps, materials, tracker, feedback)
 
@@ -311,6 +323,7 @@ class CaseGenerator:
         lps: list[LearningPoint],
         people: list[Person],
         truth: HiddenTruth,
+        defendant_id: str,
         materials: Materials,
         contradictions: list[Contradiction],
     ) -> Case:
@@ -329,6 +342,7 @@ class CaseGenerator:
             witness_scripts=materials.witness_scripts,
             contradictions=contradictions,
             research=research,
+            defendant_id=defendant_id,
         )
 
     def _generation(self, tracker: _Tracker, started: int) -> CaseGeneration:

@@ -113,19 +113,13 @@ body {
     linear-gradient(#5a3a22, #2e1d11);
 }
 
-.court-wall-plaintiff {
+.court-wall-prosecutor {
   background:
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 3px, transparent 3px 80px),
     linear-gradient(#27405a, #16222f);
 }
 
-.court-wall-defendant {
-  background:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 3px, transparent 3px 80px),
-    linear-gradient(#4f2a33, #2a151a);
-}
-
-.court-wall-witness {
+.court-wall-stand {
   background:
     radial-gradient(ellipse at 50% 30%, rgba(255, 240, 200, 0.18), transparent 60%),
     linear-gradient(#3b4a3f, #1c241f);

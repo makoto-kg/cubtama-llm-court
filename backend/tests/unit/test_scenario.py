@@ -99,7 +99,7 @@ def test_hidden_truth_reports_unknown_keys(research_report: ResearchReport) -> N
         LearningPointsOutput.model_validate(LEARNING_POINTS), research_report.evidence, 3
     )
     data = copy.deepcopy(HIDDEN_TRUTH)
-    data["lies"][0]["witness_key"] = "p9"
+    data["defendant_key"] = "p9"
     data["timeline"][0]["person_keys"] = ["p8"]
     with pytest.raises(DraftError) as e:
         to_hidden_truth(HiddenTruthOutput.model_validate(data), points)
@@ -118,14 +118,19 @@ async def test_generate_solvable_case(
 
     assert [p.id for p in case.people] == ["P-01", "P-02", "P-03"]
     assert [lie.id for lie in case.hidden_truth.lies] == ["L-01", "L-02"]
-    assert case.hidden_truth.lies[0].witness_id == "P-02"
+    # 被告だけが嘘をつき、証言する(ADR 0017)
+    assert case.defendant_id == "P-02"
+    assert {lie.witness_id for lie in case.hidden_truth.lies} == {"P-02"}
+    assert {t.witness_id for t in case.testimonies} == {"P-02"}
     assert [e.id for e in case.evidence] == ["CE-01", "CE-02", "CE-03", "CE-04"]
     x1, x2 = case.contradictions
     assert (x1.testimony_line_id, x1.evidence_id, x1.lie_id) == ("TS-01-2", "CE-01", "L-01")
     assert [t.evidence_id for t in x1.traps] == ["CE-03"]  # 正解と同じ証拠品の罠は捨てる
     assert [t.evidence_id for t in x2.traps] == ["CE-04"]
-    assert case.witness_scripts[0].lie_ids == ["L-01"]
-    assert case.witness_scripts[0].collapse_conditions[0].evidence_id == "CE-01"
+    [script] = case.witness_scripts
+    assert script.witness_id == "P-02"
+    assert script.lie_ids == ["L-01", "L-02"]
+    assert [c.evidence_id for c in script.collapse_conditions] == ["CE-01", "CE-02"]
 
     assert check_case(case, TRIAL_MODE) == []
     v = case.validation
@@ -147,7 +152,8 @@ async def test_public_view_hides_secrets(
     for secret in ("lie_id", "L-01", "LP-01", "answer_index", "hidden_truth", "misconception"):
         assert secret not in public
     assert "実験では就業率が半分に落ちました" in public
-    assert "報告書を偽ったのは誰か" in public
+    assert "被告が報告書で偽った内容は何か" in public
+    assert case.public_view().defendant_id == "P-02"
 
 
 async def test_solver_sees_only_public_info(
@@ -521,3 +527,18 @@ async def test_validate_reports_leak(
     validated = await make_generator(prompts, responder).validate(case)
     assert validated.validation is not None
     assert [i.code for i in validated.validation.issues] == ["overview_leak"]
+
+
+async def test_check_case_requires_the_defendant_to_testify(
+    prompts: PromptLoader, research_report: ResearchReport
+) -> None:
+    """証言し嘘をつくのは被告だけ。被告のない旧形式の事件はチェックに通らない。"""
+    case = await generate(prompts, research_report, CaseResponder())
+    assert check_case(case, TRIAL_MODE) == []
+
+    def codes(c: Case) -> set[str]:
+        return {i.code for i in check_case(c, TRIAL_MODE)}
+
+    assert "missing_defendant" in codes(case.model_copy(update={"defendant_id": None}))
+    other = case.model_copy(update={"defendant_id": "P-03"})
+    assert {"lie_not_defendant", "testimony_not_defendant", "script_not_defendant"} <= codes(other)

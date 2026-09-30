@@ -33,7 +33,7 @@ class TrialResponder:
         self.requests.setdefault(name, []).append(request)
         user = user_text(request)
         if name == "DeviationOutput":
-            response = user.split("# 証人の応答", 1)[1]
+            response = user.split("# 被告の応答", 1)[1]
             confessed = "認めます" in response
             data: dict[str, Any] = {
                 # 応答にない引用は採用されない(2 件目の漏洩と、範囲外の番号は捨てられる)

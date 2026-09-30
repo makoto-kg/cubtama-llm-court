@@ -148,7 +148,7 @@ class TrialLoop:
                         return "quit"
                 case "responding":
                     # 応答の途中で中断したセッションは再開できない
-                    console.print("[red]証人の応答の途中で止まっています[/red]")
+                    console.print("[red]被告の応答の途中で止まっています[/red]")
                     return "quit"
 
     async def _choose(self, state: TrialState) -> str:
@@ -160,7 +160,7 @@ class TrialLoop:
         solved_lines = {c.testimony_line_id for c in case.contradictions if c.id in state.solved}
         console.print()
         console.rule(
-            f"[bold]{escape(testimony.title)}[/bold](証人: {escape(names[testimony.witness_id])})"
+            f"[bold]{escape(testimony.title)}[/bold](被告: {escape(names[testimony.witness_id])})"
         )
         for line in testimony.lines:
             mark = "[green]✓[/green]" if line.id in solved_lines else " "
@@ -454,7 +454,7 @@ def eval_trial(
     def pct(v: float | None) -> str:
         return "-" if v is None else f"{v:.0%}"
 
-    table = Table(title="証人の台本逸脱率")
+    table = Table(title="被告の台本逸脱率")
     for column in ("範囲", "応答", "自白の早すぎ ↓", "崩れ損ね ↓", "漏洩 ↓", "逸脱(全体)↓"):
         table.add_column(column)
     for m in metrics:

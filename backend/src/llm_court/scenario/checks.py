@@ -30,6 +30,33 @@ def check_case(case: Case, mode: TrialMode) -> list[CheckIssue]:
     lines = case.testimony_lines
     lps = {lp.id for lp in case.learning_points}
 
+    # --- 被告(証言し、嘘をつくのは被告だけ。ADR 0017) ---
+    defendant = case.defendant_id
+    if defendant is None:
+        add("missing_defendant", "被告が決まっていません", "hidden_truth")
+    elif defendant not in people:
+        add("missing_defendant", f"被告 {defendant} が人物一覧にいません", "hidden_truth")
+    else:
+        for lie in case.hidden_truth.lies:
+            if lie.witness_id != defendant:
+                add(
+                    "lie_not_defendant", f"嘘 {lie.id} をつくのが被告ではありません", "hidden_truth"
+                )
+        for t in case.testimonies:
+            if t.witness_id != defendant:
+                add(
+                    "testimony_not_defendant",
+                    f"証言 {t.id} の話し手が被告ではありません",
+                    "materials",
+                )
+        for script in case.witness_scripts:
+            if script.witness_id != defendant:
+                add(
+                    "script_not_defendant",
+                    f"被告以外の台本があります({script.witness_id})",
+                    "materials",
+                )
+
     # --- 真相(人物・時系列・嘘) ---
     orders = Counter(e.order for e in case.hidden_truth.timeline)
     for order, count in orders.items():
@@ -53,7 +80,11 @@ def check_case(case: Case, mode: TrialMode) -> list[CheckIssue]:
         add("lie_count", f"嘘の数が {len(lies)} です({lo}〜{hi} 個にする)", "hidden_truth")
     for lie in lies.values():
         if lie.witness_id not in people:
-            add("missing_person", f"嘘 {lie.id} の証人 {lie.witness_id} がいません", "hidden_truth")
+            add(
+                "missing_person",
+                f"嘘 {lie.id} の話し手 {lie.witness_id} がいません",
+                "hidden_truth",
+            )
         if lie.truth_event_id not in events:
             add("missing_event", f"嘘 {lie.id} の実際の出来事がありません", "hidden_truth")
         for lp in lie.learning_point_ids:
@@ -67,7 +98,7 @@ def check_case(case: Case, mode: TrialMode) -> list[CheckIssue]:
     # --- 資料(証言・台本・矛盾・問い) ---
     for t in case.testimonies:
         if t.witness_id not in people:
-            add("missing_person", f"証言 {t.id} の証人 {t.witness_id} がいません", "materials")
+            add("missing_person", f"証言 {t.id} の話し手 {t.witness_id} がいません", "materials")
     lie_lines = Counter(line.lie_id for line in lines.values() if line.lie_id)
     for lie_id in lies:
         if lie_lines[lie_id] != 1:
@@ -124,7 +155,7 @@ def check_case(case: Case, mode: TrialMode) -> list[CheckIssue]:
     scripted = {s.witness_id for s in case.witness_scripts}
     for lie in lies.values():
         if lie.witness_id not in scripted:
-            add("missing_script", f"証人 {lie.witness_id} の台本がありません", "materials")
+            add("missing_script", f"被告 {lie.witness_id} の台本がありません", "materials")
     q = case.question
     if not 0 <= q.answer_index < len(q.options):
         add("question_answer", "問いの正解が選択肢の範囲外です", "materials")
