@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { OFFLINE_ONLY } from "@/lib/offline/config";
+import { HeaderNav } from "@/components/HeaderNav";
 
 import "./globals.css";
 
@@ -19,19 +19,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <Link href="/" className="text-lg font-bold tracking-widest text-[var(--court-accent)]">
             llm-court
           </Link>
-          <nav className="flex gap-4 text-sm">
-            <Link href="/" className="hover:underline">
-              タイトル
-            </Link>
-            <Link href="/offline/" className="hover:underline">
-              オフライン
-            </Link>
-            {!OFFLINE_ONLY && (
-              <Link href="/settings/" className="hover:underline">
-                設定
-              </Link>
-            )}
-          </nav>
+          <HeaderNav />
         </header>
         <main className="mx-auto max-w-6xl p-4">{children}</main>
       </body>

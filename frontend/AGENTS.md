@@ -19,8 +19,8 @@ Next.js(App Router)による法廷バトルADVの画面。
 
 ```bash
 pnpm install
-pnpm dev             # 開発サーバー(http://localhost:3000)。backend の `llm-court serve` も起動しておく
-pnpm build           # SPA として静的ビルド(out/ に出力)
+pnpm dev             # 開発サーバー(http://localhost:3000)。オンラインで遊ぶときは backend の `llm-court serve` も起動しておく
+pnpm build           # SPA として静的ビルド(out/ に出力)。ビルドは 1 本(ADR 0018)
 pnpm serve           # 静的ビルド(out/)を配信(http://127.0.0.1:8080。PORT・HOST で変更。npm run serve でも可)
 pnpm lint
 pnpm typecheck
@@ -28,7 +28,7 @@ pnpm test
 pnpm gen:api         # backend の OpenAPI から API 型を生成(src/api/schema.d.ts)
 ```
 
-接続先は `NEXT_PUBLIC_API_ORIGIN`(既定 `http://127.0.0.1:8000`)。
+接続先は `NEXT_PUBLIC_API_ORIGIN`(既定 `http://127.0.0.1:8000`)。オフライン / オンラインはタイトルの切り替えで選ぶ(既定はオフライン。`useAppMode`)。ビルド時の環境変数で画面を切り替えない。
 
 ## ルール
 
@@ -46,7 +46,8 @@ pnpm gen:api         # backend の OpenAPI から API 型を生成(src/api/schem
 - パックは `llm-court offline export`(LLM で事前生成)か `llm-court offline scripted`(`backend/scenarios/` の台本。チュートリアル用。ADR 0016)で作る。手で編集しない
 - 進行ロジックは `src/lib/offline/` に TypeScript で移植してある(backend の `agents/trial_analyst.py`・`engine/trial.py` と同じ規則)。規則を変えるときは両方を直す
 - 状態の真実は `localStorage` の行動の列。状態は `replay` で作り直す
-- `NEXT_PUBLIC_OFFLINE_ONLY=1 pnpm build` で、API のない配布用の SPA になる(タイトルがオフラインの一覧になる)
+- モードはタイトルで選ぶ。既定はオフライン(ADR 0018)。オフラインのときは API を呼ぶ画面への導線を出さない
+- オンラインの画面(`/court/`・`/trial/`・`/settings/`)のページは常にビルドに含まれる
 
 ### Backend との関係
 
