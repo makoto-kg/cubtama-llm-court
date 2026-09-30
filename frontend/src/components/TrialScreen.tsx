@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import type { LLMCallInfo, ObjectionTarget, TrialView } from "@/api/client";
 import { TRIAL_ROLE_NAMES } from "@/assets/manifest";
@@ -11,9 +11,11 @@ import { llmCalls } from "@/lib/events";
 import { STRENGTH_LABELS } from "@/lib/labels";
 import { shouldShowOpening } from "@/lib/opening";
 import {
+  COLLAPSE_CUT_IN,
   currentTestimony,
   focusLine,
   optionsByLine,
+  pendingCollapse,
   personName,
   stepLine,
   testimonyExamined,
@@ -129,6 +131,10 @@ export function TrialBoard({
   const [lineAt, setLineAt] = useState<number | null>(null);
   // 最後の問いに移る前に、証言が崩れた応答を読んでもらう(タップで問いへ)
   const [questionReady, setQuestionReady] = useState(false);
+  // 「証言崩壊!」は、崩れた応答を読み終えてから出す。見せ終えた応答の番号と、読み終えた応答のキー
+  // (開いた時点までの応答は見せ終えたことにする。読み直しで同じ演出を繰り返さない)
+  const [collapseShown, setCollapseShown] = useState(() => view.exchanges.length - 1);
+  const [typedKey, setTypedKey] = useState<string | null>(null);
   const finished = view.status === "finished" || view.status === "aborted";
   const testimony = currentTestimony(view);
   // 証言が始まったら、まず被告に一通り証言させてから尋問の操作を出す。
@@ -154,9 +160,29 @@ export function TrialBoard({
   const replyKey = `r-${streaming ? view.exchanges.length : view.exchanges.length - 1}`;
   // カットイン(確認!・反証!・証言崩壊! など)が消えるまで、応答の台詞は送らない
   const holdReply = Boolean(cutIn);
+  const markTyped = useCallback(() => setTypedKey(replyKey), [replyKey]);
   const replyText = (text: string) => (
-    <Typewriter text={text} resetKey={replyKey} active={Boolean(streaming)} paused={holdReply} />
+    <Typewriter
+      text={text}
+      resetKey={replyKey}
+      active={Boolean(streaming)}
+      paused={holdReply}
+      onDone={markTyped}
+    />
   );
+  const collapseIndex = streaming ? null : pendingCollapse(view.exchanges, collapseShown);
+  // 崩れた応答を読み終えるまで、次の操作に進ませない
+  const collapseBusy = collapseIndex !== null;
+  const collapseCutIn = useMemo(
+    () =>
+      collapseIndex !== null && !cutIn && typedKey === `r-${collapseIndex}`
+        ? { text: COLLAPSE_CUT_IN, key: -1 - collapseIndex, strong: true }
+        : null,
+    [collapseIndex, cutIn, typedKey],
+  );
+  const clearCollapse = useCallback(() => {
+    if (collapseIndex !== null) setCollapseShown(collapseIndex);
+  }, [collapseIndex]);
   const pointLine = (id: string | null) => {
     if (!id) return;
     setLineChoice(id);
@@ -225,7 +251,11 @@ export function TrialBoard({
   } else if (recitalPending && last && testimony) {
     stage = (
       <CourtShot kind="stand" alt={personName(view, last.witness_id)}>
-        <DialogueBox name={personName(view, last.witness_id)} waiting onClick={() => setPlayId(testimony.id)}>
+        <DialogueBox
+          name={personName(view, last.witness_id)}
+          waiting={!collapseBusy}
+          onClick={collapseBusy ? undefined : () => setPlayId(testimony.id)}
+        >
           <p>{replyText(last.text)}</p>
         </DialogueBox>
       </CourtShot>
@@ -233,7 +263,8 @@ export function TrialBoard({
     panel = (
       <button
         onClick={() => setPlayId(testimony.id)}
-        className="w-full rounded-lg border-2 border-[var(--court-accent)] bg-black/40 p-3 font-bold hover:bg-white/10"
+        disabled={collapseBusy}
+        className="w-full rounded-lg border-2 border-[var(--court-accent)] bg-black/40 p-3 font-bold hover:bg-white/10 disabled:opacity-40"
       >
         次の証言を聞く ▶
       </button>
@@ -243,8 +274,8 @@ export function TrialBoard({
       <CourtShot kind="stand" alt={personName(view, last.witness_id)}>
         <DialogueBox
           name={personName(view, last.witness_id)}
-          waiting={!holdReply}
-          onClick={holdReply ? undefined : () => setQuestionReady(true)}
+          waiting={!holdReply && !collapseBusy}
+          onClick={holdReply || collapseBusy ? undefined : () => setQuestionReady(true)}
         >
           <p>{replyText(last.text)}</p>
         </DialogueBox>
@@ -253,7 +284,7 @@ export function TrialBoard({
     panel = (
       <button
         onClick={() => setQuestionReady(true)}
-        disabled={holdReply}
+        disabled={holdReply || collapseBusy}
         className="w-full rounded-lg border-2 border-[var(--court-accent)] bg-black/40 p-3 font-bold hover:bg-white/10 disabled:opacity-40"
       >
         最後の問いへ ▶
@@ -287,7 +318,7 @@ export function TrialBoard({
     );
   } else {
     const showLine = !reply && line;
-    const busy = Boolean(streaming) || running || holdReply;
+    const busy = Boolean(streaming) || running || holdReply || collapseBusy;
     const speakerName = reply ? personName(view, reply.witnessId) : witnessName;
     stage = (
       <CourtShot kind="stand" alt={speakerName} speaking={Boolean(streaming) && !holdReply}>
@@ -349,6 +380,7 @@ export function TrialBoard({
   return (
     <>
       <CutInView cutIn={cutIn} onDone={onClearCutIn} />
+      <CutInView cutIn={collapseCutIn} onDone={clearCollapse} />
       <GameShell
         top={
           <>

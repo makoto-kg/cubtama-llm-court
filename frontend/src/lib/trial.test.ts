@@ -4,11 +4,11 @@ import type { DebateEvent, Explanation, TrialOption } from "@/api/client";
 
 import {
   appendWitnessToken,
-  COLLAPSE_CUT_IN,
   cutInForTrialEvent,
   objectionTargets,
   focusLine,
   optionsByLine,
+  pendingCollapse,
   stepLine,
   testimonyExamined,
 } from "./trial";
@@ -39,13 +39,13 @@ describe("appendWitnessToken", () => {
 });
 
 describe("cutInForTrialEvent", () => {
-  it("つきつけ・ゆさぶり・証言の崩壊で文言が変わる", () => {
+  it("つきつけ・ゆさぶりで文言が変わる。証言の崩壊ではイベントからは出さない", () => {
     const made = (o: TrialOption) =>
       ({ type: "trial_choice_made", option: o, session_id: "s", seq: 1 }) as unknown as DebateEvent;
     expect(cutInForTrialEvent(made(option("a", "present", "L1")))).toBe("反証!");
     expect(cutInForTrialEvent(made(option("b", "probe", "L1")))).toBe("確認!");
     const solved = { type: "contradiction_solved", contradiction_id: "X-01" } as unknown as DebateEvent;
-    expect(cutInForTrialEvent(solved)).toBe(COLLAPSE_CUT_IN);
+    expect(cutInForTrialEvent(solved)).toBeNull();
     const other = { type: "penalty_applied" } as unknown as DebateEvent;
     expect(cutInForTrialEvent(other)).toBeNull();
   });
@@ -135,5 +135,19 @@ describe("focusLine / stepLine", () => {
     expect(stepLine(lines, "L1", -1)).toBe("L3");
     expect(stepLine(lines, null, 1)).toBe("L2");
     expect(stepLine([], "L1", 1)).toBeNull();
+  });
+});
+
+describe("pendingCollapse", () => {
+  const ex = (...solved: boolean[]) => solved.map((s) => ({ solved: s }));
+
+  it("最新の応答が崩れた応答で、まだ見せていなければその番号", () => {
+    expect(pendingCollapse(ex(false, true), 0)).toBe(1);
+    expect(pendingCollapse(ex(false, true), 1)).toBeNull();
+  });
+
+  it("最新の応答が崩れていなければ出さない", () => {
+    expect(pendingCollapse(ex(true, false), 0)).toBeNull();
+    expect(pendingCollapse([], -1)).toBeNull();
   });
 });

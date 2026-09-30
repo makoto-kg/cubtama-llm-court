@@ -11,7 +11,7 @@ import {
   unwrap,
 } from "@/api/client";
 import { isTerminal, lastSeq } from "@/lib/events";
-import { COLLAPSE_CUT_IN, cutInForTrialEvent, isTrialFinished } from "@/lib/trial";
+import { cutInForTrialEvent, isTrialFinished } from "@/lib/trial";
 import { useTrialStore } from "@/store/trial";
 
 const REFRESH_DELAY_MS = 150;
@@ -58,7 +58,7 @@ export function useTrialSession(sessionId: string | null) {
         s.addEvents([event]);
         if (event.type === "witness_responded") s.endStreaming();
         const cutIn = cutInForTrialEvent(event);
-        if (cutIn) s.showCutIn(cutIn, cutIn === COLLAPSE_CUT_IN);
+        if (cutIn) s.showCutIn(cutIn);
         scheduleRefresh();
         if (isTerminal(event)) {
           closed = true;

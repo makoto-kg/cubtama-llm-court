@@ -23,11 +23,22 @@ export function cutInForTrialChoice(option: TrialOption): string {
 /** 証言が崩れた瞬間の、強い演出のカットイン。 */
 export const COLLAPSE_CUT_IN = "証言崩壊!";
 
-/** 永続イベントから出すカットイン(正解で証言が崩れたとき)。 */
+/**
+ * 永続イベントから出すカットイン(選んだ瞬間の「反証!」「確認!」)。
+ * 「証言崩壊!」はここでは出さない。被告の応答を読み終えてから画面が出す(`pendingCollapse`)。
+ */
 export function cutInForTrialEvent(event: DebateEvent): string | null {
   if (event.type === "trial_choice_made") return cutInForTrialChoice(event.option);
-  if (event.type === "contradiction_solved") return COLLAPSE_CUT_IN;
   return null;
+}
+
+/**
+ * まだ「証言崩壊!」を見せていない、証言が崩れた応答の番号。
+ * 最新の応答が崩れた応答で、`shownUpTo`(見せ終えた応答の番号)より後なら、その番号を返す。
+ */
+export function pendingCollapse(exchanges: readonly { solved: boolean }[], shownUpTo: number): number | null {
+  const i = exchanges.length - 1;
+  return i >= 0 && i > shownUpTo && exchanges[i].solved ? i : null;
 }
 
 export function isTrialFinished(view: TrialView | null): boolean {

@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type { OfflinePack } from "@/api/client";
 import { apply, type OfflineAction, type OfflineState, replay } from "@/lib/offline/engine";
 import { clearSave, loadSave, revealSteps, writeSave } from "@/lib/offline/save";
-import { COLLAPSE_CUT_IN, cutInForTrialChoice, type WitnessStream } from "@/lib/trial";
+import { cutInForTrialChoice, type WitnessStream } from "@/lib/trial";
 
 const REVEAL_INTERVAL_MS = 30;
 
@@ -106,8 +106,8 @@ export const useOfflineStore = create<OfflineStoreState>((set, get) => {
           return;
         }
         stopReveal();
+        // 「証言崩壊!」は、被告の応答を読み終えてから画面が出す
         set({ streaming: null, state: nextState });
-        if (exchange.solved) set({ cutIn: { text: COLLAPSE_CUT_IN, key: Date.now(), strong: true } });
       }, REVEAL_INTERVAL_MS);
     },
     answer: (index) => {
