@@ -95,7 +95,8 @@ export const useOfflineStore = create<OfflineStoreState>((set, get) => {
       const nextState = commit({ kind: "choose", optionId });
       if (!nextState || !option) return;
       const exchange = nextState.exchanges.at(-1)!;
-      set({ cutIn: { text: cutInForTrialChoice(option), key: Date.now(), strong: false } });
+      const speech = get().state?.pack.case.prosecutor_speech ?? "plain";
+      set({ cutIn: { text: cutInForTrialChoice(option, speech), key: Date.now(), strong: false } });
       const steps = revealSteps(exchange.text);
       let i = 0;
       set({ streaming: { witnessId: exchange.witness_id, text: "" } });

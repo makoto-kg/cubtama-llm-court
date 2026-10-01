@@ -15,9 +15,16 @@ export function appendWitnessToken(
   return { witnessId: token.witness_id, text: token.text };
 }
 
-/** 選択の直後に出すカットイン。つきつける = 反証、ゆさぶる = 確認。 */
-export function cutInForTrialChoice(option: TrialOption): string {
-  return option.kind === "present" ? CUT_IN_TEXT.contradiction : CUT_IN_TEXT.probe;
+/**
+ * 猫言葉の検察官がつきつけるときのカットイン。ユーザーの指定で、猫言葉に限って「反証!」の代わりに使う
+ * (ふつうの口調の事件では「反証!」のまま)。
+ */
+export const CAT_OBJECTION_CUT_IN = "異議ありにゃ！";
+
+/** 選択の直後に出すカットイン。つきつける = 反証(猫言葉の検察官は「異議ありにゃ！」)、ゆさぶる = 確認。 */
+export function cutInForTrialChoice(option: TrialOption, speech: ProsecutorSpeech = "plain"): string {
+  if (option.kind !== "present") return CUT_IN_TEXT.probe;
+  return speech === "cat" ? CAT_OBJECTION_CUT_IN : CUT_IN_TEXT.contradiction;
 }
 
 /** 証言が崩れた瞬間の、強い演出のカットイン。 */
@@ -27,8 +34,8 @@ export const COLLAPSE_CUT_IN = "証言崩壊!";
  * 永続イベントから出すカットイン(選んだ瞬間の「反証!」「確認!」)。
  * 「証言崩壊!」はここでは出さない。被告の応答を読み終えてから画面が出す(`pendingCollapse`)。
  */
-export function cutInForTrialEvent(event: DebateEvent): string | null {
-  if (event.type === "trial_choice_made") return cutInForTrialChoice(event.option);
+export function cutInForTrialEvent(event: DebateEvent, speech: ProsecutorSpeech = "plain"): string | null {
+  if (event.type === "trial_choice_made") return cutInForTrialChoice(event.option, speech);
   return null;
 }
 
@@ -67,10 +74,11 @@ const PRESENT_LINES: Record<ProsecutorSpeech, ((line: string, evidence: string) 
     (_line, evidence) => `今の証言は、この「${evidence}」と食い違っています!`,
     (line, evidence) => `「${evidence}」を見てください。これでもまだ「${line}」と言い張りますか?`,
   ],
+  // 猫言葉の検察官は、つきつけるとき「異議ありにゃ！」から始める
   cat: [
-    (line, evidence) => `「${line}」……ほんとかにゃ? じゃあ、この「${evidence}」を見るにゃ!`,
-    (_line, evidence) => `今の証言は、この「${evidence}」と食いちがってるにゃ!`,
-    (line, evidence) => `「${evidence}」を見るにゃ。これでもまだ「${line}」って言いはるのかにゃ?`,
+    (line, evidence) => `異議ありにゃ！ 「${line}」……ほんとかにゃ? じゃあ、この「${evidence}」を見るにゃ!`,
+    (_line, evidence) => `異議ありにゃ！ 今の証言は、この「${evidence}」と食いちがってるにゃ!`,
+    (line, evidence) => `異議ありにゃ！ 「${evidence}」を見るにゃ。これでもまだ「${line}」って言いはるのかにゃ?`,
   ],
 };
 

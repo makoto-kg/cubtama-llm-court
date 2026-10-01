@@ -1,7 +1,10 @@
 import type { ChoiceOption, Side } from "@/api/client";
 import type { TurnKey } from "./stream";
 
-/** カットインの文言(オリジナル。既存作品の決め台詞は使わない)。 */
+/**
+ * カットインの文言(オリジナル。既存作品の決め台詞は使わない)。
+ * 例外: 猫言葉の検察官がつきつけるときの「異議ありにゃ！」(ユーザーの指定。`CAT_OBJECTION_CUT_IN`)。
+ */
 export const CUT_IN_TEXT = {
   contradiction: "反証!",
   probe: "確認!",

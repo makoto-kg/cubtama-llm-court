@@ -45,6 +45,9 @@ describe("cutInForTrialEvent", () => {
       ({ type: "trial_choice_made", option: o, session_id: "s", seq: 1 }) as unknown as DebateEvent;
     expect(cutInForTrialEvent(made(option("a", "present", "L1")))).toBe("反証!");
     expect(cutInForTrialEvent(made(option("b", "probe", "L1")))).toBe("確認!");
+    // 猫言葉の検察官は、つきつけるとき「異議ありにゃ！」
+    expect(cutInForTrialEvent(made(option("a", "present", "L1")), "cat")).toBe("異議ありにゃ！");
+    expect(cutInForTrialEvent(made(option("b", "probe", "L1")), "cat")).toBe("確認!");
     const solved = { type: "contradiction_solved", contradiction_id: "X-01" } as unknown as DebateEvent;
     expect(cutInForTrialEvent(solved)).toBeNull();
     const other = { type: "penalty_applied" } as unknown as DebateEvent;
@@ -184,5 +187,10 @@ describe("prosecutorLine の口調", () => {
       }
     }
     expect(prosecutorLine(option("x", "probe", "L1"), "昨日は家にいました", null, 0)).not.toContain("にゃ");
+    // つきつけるときは「異議ありにゃ！」から始める(ゆさぶるでは言わない)
+    for (const n of [0, 1, 2]) {
+      expect(prosecutorLine(option("x", "present", "L1"), "昨日", "日程表", n, "cat")).toMatch(/^異議ありにゃ！/);
+      expect(prosecutorLine(option("x", "probe", "L1"), "昨日", null, n, "cat")).not.toContain("異議あり");
+    }
   });
 });

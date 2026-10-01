@@ -57,7 +57,7 @@ export function useTrialSession(sessionId: string | null) {
         const s = store.getState();
         s.addEvents([event]);
         if (event.type === "witness_responded") s.endStreaming();
-        const cutIn = cutInForTrialEvent(event);
+        const cutIn = cutInForTrialEvent(event, s.view?.case.prosecutor_speech ?? "plain");
         if (cutIn) s.showCutIn(cutIn);
         scheduleRefresh();
         if (isTerminal(event)) {
