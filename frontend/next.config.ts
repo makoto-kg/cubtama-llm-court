@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   // /court → /court/index.html として出力し、静的サーバーでそのまま配信できるようにする
   trailingSlash: true,
   images: { unoptimized: true },
+  // サブパスに配信するとき(GitHub Pages の `/<repo>/` など)の接頭辞。既定はルート(ADR 0021)
+  basePath: process.env.NEXT_PUBLIC_BASE_PATH || undefined,
 };
 
 export default nextConfig;

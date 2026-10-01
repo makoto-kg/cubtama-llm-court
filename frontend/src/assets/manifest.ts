@@ -1,13 +1,15 @@
+import { withBasePath } from "@/lib/basePath";
+
 /**
  * 立ち絵などの素材のパス。すべてオリジナルの仮素材で、差し替えはこのファイルだけで行う。
  */
 export const ASSETS = {
-  judge: "/assets/judge.svg",
-  affirmative: "/assets/affirmative.svg",
-  negative: "/assets/negative.svg",
-  witness: "/assets/witness.svg",
+  judge: withBasePath("/assets/judge.svg"),
+  affirmative: withBasePath("/assets/affirmative.svg"),
+  negative: withBasePath("/assets/negative.svg"),
+  witness: withBasePath("/assets/witness.svg"),
   // 裁判型の検察官(プレイヤー)。仮素材はディベートの立ち絵を流用する。被告は証言台の立ち絵(witness)
-  prosecutor: "/assets/affirmative.svg",
+  prosecutor: withBasePath("/assets/affirmative.svg"),
 } as const;
 
 export const SPEAKER_NAMES = {

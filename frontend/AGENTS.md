@@ -39,6 +39,9 @@ pnpm gen:api         # backend の OpenAPI から API 型を生成(src/api/schem
 - 動的パス(`[id]`)は使わず、クエリで渡す(例: `/court/?session=<id>`)。`useSearchParams` を使うコンポーネントは `Suspense` で包む
 - Server Components はビルド時に描画できるシェルにだけ使い、データの取得はクライアント(ブラウザ)から API に対して行う
 - 変更後は `pnpm build` が通り、`out/` に各ページの `index.html` が出ることを確認する
+- サブパス(GitHub Pages の `/<repo>/`)に配信できる状態を保つ(ADR 0021)。`public/` のファイルを `fetch`・`next/image` で参照するときは `withBasePath`(`src/lib/basePath.ts`)を通す。`next/link` には自動で付く
+  - 確認: `NEXT_PUBLIC_BASE_PATH=/llm-court pnpm build`
+  - デプロイは `.github/workflows/deploy-frontend.yml`
 
 ### 完全オフラインモード(ADR 0014)
 
