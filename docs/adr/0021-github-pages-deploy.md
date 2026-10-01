@@ -14,7 +14,7 @@ Next.js の `basePath` は `next/link` には自動で付くが、`next/image` �
 ## 決定
 
 - `.github/workflows/deploy-frontend.yml` で GitHub Actions からデプロイする
-  - `master` への push(`frontend/` か workflow 自身の変更)と手動実行で動く
+  - `main` への push(`frontend/` か workflow 自身の変更)と手動実行で動く
   - lint・型チェック・テストのあと `pnpm build` し、`frontend/out` を Pages の artifact としてアップロードする
   - リポジトリの Settings → Pages の Source を「GitHub Actions」にしておく
 - サブパスは環境変数 `NEXT_PUBLIC_BASE_PATH` で渡す(既定は空 = ルートに配信)
