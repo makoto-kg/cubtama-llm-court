@@ -15,7 +15,7 @@ import { GameShell } from "./GameShell";
 /** 話す人ごとの法廷の画面。被告は証言台に立つ。 */
 const SHOT: Record<OpeningSpeaker, CourtShotKind> = { judge: "judge", prosecutor: "prosecutor", defendant: "stand" };
 
-/** 名札: 名前（裁判官） / 名前（検察官） / 名前（被告）。 */
+/** 名札: 名前裁判長 / 名前検察官 / 名前被告。 */
 function speakerName(speaker: OpeningSpeaker, view: TrialView): string {
   if (speaker === "prosecutor") return prosecutorLabel(view);
   if (speaker === "defendant") return defendantLabel(view);
