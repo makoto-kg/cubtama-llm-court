@@ -1,7 +1,7 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
-import { ASSETS } from "@/assets/manifest";
+import { type CharacterPose, trialSprite } from "@/assets/manifest";
 
 /**
  * 法廷の「カメラ」。話す人ごとに画面を切り替える(ADV の定番の見せ方。素材・意匠はオリジナル)。
@@ -9,61 +9,104 @@ import { ASSETS } from "@/assets/manifest";
  */
 export type CourtShotKind = "judge" | "prosecutor" | "stand";
 
-const FIGURE: Record<CourtShotKind, { src: string; width: number; height: number; align: string }> = {
-  judge: { src: ASSETS.judge, width: 190, height: 228, align: "justify-center" },
-  prosecutor: { src: ASSETS.prosecutor, width: 210, height: 273, align: "justify-start pl-[12%]" },
-  stand: { src: ASSETS.witness, width: 200, height: 260, align: "justify-center" },
+const ROLE = { judge: "judge", prosecutor: "prosecutor", stand: "defendant" } as const;
+
+type Placement = { height: string; box: string; position: string };
+
+/** 立ち絵の置き場所(画面の高さに対する立ち絵の高さと、横の寄せ方)。 */
+const PLACEMENT: Record<CourtShotKind, Placement> = {
+  judge: { height: "h-[96%]", box: "inset-x-0 justify-center", position: "object-bottom" },
+  prosecutor: { height: "h-[98%]", box: "inset-x-0 justify-center", position: "object-bottom" },
+  stand: { height: "h-[97%]", box: "inset-x-0 justify-center", position: "object-bottom" },
 };
 
-/** 背景の壁。席ごとに色味を変える。 */
-const WALL: Record<CourtShotKind, string> = {
-  judge: "court-wall-judge",
-  prosecutor: "court-wall-prosecutor",
-  stand: "court-wall-stand",
+/** つきつけるときは左に寄せ、右の相手を指さす。 */
+const IGIARI_PLACEMENT: Placement = {
+  height: "h-[98%]",
+  box: "left-[4%] right-0 justify-start",
+  position: "object-left-bottom",
 };
+
+/** 表情ごとの動き(困惑は震え、有罪はうなだれる、つきつけるは踏み込む)。 */
+const POSE_CLASS: Record<CharacterPose, string> = {
+  standard: "",
+  nervous: "pose-nervous",
+  lose: "pose-lose",
+  igiari: "pose-igiari",
+};
+
+/** 背景の壁。席ごとに色味と飾りを変える。 */
+function Backdrop({ kind, pose }: { kind: CourtShotKind; pose: CharacterPose }) {
+  if (pose === "igiari") {
+    return (
+      <div className="court-wall-action absolute inset-0">
+        <div className="court-speedlines absolute inset-0" />
+      </div>
+    );
+  }
+  return (
+    <div className={`absolute inset-0 court-wall-${kind}`}>
+      {kind === "judge" && <div className="court-emblem absolute left-1/2 top-[6%] -translate-x-1/2" />}
+      {kind === "stand" && <div className="court-spotlight absolute inset-0" />}
+      {pose === "lose" && <div className="court-gloom absolute inset-0" />}
+    </div>
+  );
+}
 
 /** 手前の机(裁判官席・検察官席・証言台)。 */
-function Desk({ kind }: { kind: CourtShotKind }) {
+function Desk({ kind, pose }: { kind: CourtShotKind; pose: CharacterPose }) {
   if (kind === "judge") {
-    return <div className="court-desk absolute inset-x-[8%] bottom-0 h-[44%] rounded-t-md" />;
+    return <div className="court-desk absolute inset-x-[4%] bottom-0 h-[24%] rounded-t-sm" />;
   }
   if (kind === "stand") {
-    return <div className="court-desk absolute inset-x-[34%] bottom-0 h-[40%] rounded-t-md" />;
+    return <div className="court-desk court-desk-stand absolute inset-x-[26%] bottom-0 h-[26%] rounded-t-sm" />;
   }
-  return <div className="court-desk absolute bottom-0 left-0 right-[38%] h-[40%]" />;
+  // つきつけるときは机を画面の端へ寄せ、手前に踏み込んだように見せる
+  return pose === "igiari" ? (
+    <div className="court-desk absolute bottom-0 left-0 right-[62%] h-[16%]" />
+  ) : (
+    <div className="court-desk absolute inset-x-[10%] bottom-0 h-[24%] rounded-t-sm" />
+  );
 }
 
 /** 1 人を映す法廷の画面。`children` は画面の上に重ねるもの(台詞の枠など)。 */
 export function CourtShot({
   kind,
   alt,
+  pose = "standard",
   speaking = false,
   shake = false,
   children,
 }: {
   kind: CourtShotKind;
   alt: string;
+  /** 立ち絵の表情。その役にない表情は通常の立ち絵になる。 */
+  pose?: CharacterPose;
   speaking?: boolean;
   shake?: boolean;
   children?: ReactNode;
 }) {
-  const figure = FIGURE[kind];
+  const sprite = trialSprite(ROLE[kind], pose);
+  const place = pose === "igiari" ? IGIARI_PLACEMENT : PLACEMENT[kind];
   return (
-    <div className={`relative h-[46svh] max-h-[30rem] min-h-64 w-full sm:aspect-[16/10] sm:h-auto sm:max-h-[32rem] overflow-hidden rounded-lg ${shake ? "gavel-shake" : ""}`}>
-      <div key={kind} className={`shot-in absolute inset-0 ${WALL[kind]}`}>
-        <div className={`absolute inset-x-0 bottom-[30%] flex ${figure.align}`}>
+    <div
+      className={`court-frame relative h-[46svh] max-h-[30rem] min-h-64 w-full sm:aspect-[16/10] sm:h-auto sm:max-h-[32rem] overflow-hidden rounded-lg ${shake ? "gavel-shake" : ""}`}
+    >
+      <div key={`${kind}-${pose === "igiari" ? "action" : "still"}`} className="shot-in absolute inset-0">
+        <Backdrop kind={kind} pose={pose} />
+        <div className={`absolute bottom-0 top-0 flex items-end ${place.box} ${speaking ? "speaking" : ""}`}>
           <Image
-            src={figure.src}
+            key={sprite.src}
+            src={sprite.src}
             alt={alt}
-            width={figure.width}
-            height={figure.height}
-            className={`h-auto w-[50%] max-w-64 sm:w-[30%] ${
-              speaking ? "speaking" : ""
-            }`}
+            width={sprite.width}
+            height={sprite.height}
+            className={`court-figure ${place.height} w-auto max-w-full object-contain ${place.position} ${POSE_CLASS[pose]}`}
             priority
           />
         </div>
-        <Desk kind={kind} />
+        <Desk kind={kind} pose={pose} />
+        <div className="court-vignette pointer-events-none absolute inset-0" />
       </div>
       {children}
     </div>

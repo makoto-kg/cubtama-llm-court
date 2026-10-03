@@ -1,16 +1,52 @@
 import { withBasePath } from "@/lib/basePath";
 
 /**
- * 立ち絵などの素材のパス。すべてオリジナルの仮素材で、差し替えはこのファイルだけで行う。
+ * 立ち絵などの素材のパス。すべてオリジナルの素材で、差し替えはこのファイルだけで行う。
+ * 裁判型の 3 人の立ち絵は `public/assets/characters/` の透過 PNG(`scripts/cutout_sprites.py` で元画像から作る)。
  */
 export const ASSETS = {
-  judge: withBasePath("/assets/judge.svg"),
+  judge: withBasePath("/assets/characters/aya_standard.png"),
   affirmative: withBasePath("/assets/affirmative.svg"),
   negative: withBasePath("/assets/negative.svg"),
-  witness: withBasePath("/assets/witness.svg"),
-  // 裁判型の検察官(プレイヤー)。仮素材はディベートの立ち絵を流用する。被告は証言台の立ち絵(witness)
-  prosecutor: withBasePath("/assets/affirmative.svg"),
 } as const;
+
+/** 立ち絵の表情・ポーズ。 */
+export type CharacterPose = "standard" | "nervous" | "lose" | "igiari";
+
+export type Sprite = { src: string; width: number; height: number };
+
+function sprite(name: string, width: number, height: number): Sprite {
+  return { src: withBasePath(`/assets/characters/${name}.png`), width, height };
+}
+
+/**
+ * 裁判型の法廷に立つ 3 人の立ち絵(ADR 0017)。どの事件でも同じ顔ぶれが演じる。
+ * - 裁判官: アヤ裁判長
+ * - 検察官(プレイヤー): タマ。`igiari` は証拠品をつきつけるとき
+ * - 被告: カブ。`nervous` は矛盾を突かれたとき、`lose` は有罪の判決を受けたとき
+ */
+export const TRIAL_SPRITES: {
+  judge: { standard: Sprite };
+  prosecutor: { standard: Sprite; igiari: Sprite };
+  defendant: { standard: Sprite; nervous: Sprite; lose: Sprite };
+} = {
+  judge: { standard: sprite("aya_standard", 795, 1100) },
+  prosecutor: {
+    standard: sprite("tama_standard", 784, 1100),
+    igiari: sprite("tama_igiari", 1100, 858),
+  },
+  defendant: {
+    standard: sprite("cub_standard", 751, 1100),
+    nervous: sprite("cub_nervous", 801, 1100),
+    lose: sprite("cub_lose", 828, 1100),
+  },
+};
+
+/** 役と表情から立ち絵を選ぶ。その役にない表情は通常の立ち絵にする。 */
+export function trialSprite(role: keyof typeof TRIAL_SPRITES, pose: CharacterPose = "standard"): Sprite {
+  const poses: Partial<Record<CharacterPose, Sprite>> & { standard: Sprite } = TRIAL_SPRITES[role];
+  return poses[pose] ?? poses.standard;
+}
 
 export const SPEAKER_NAMES = {
   judge: "裁判長",
@@ -18,7 +54,7 @@ export const SPEAKER_NAMES = {
   negative: "否定側",
 } as const;
 
-/** 裁判型の裁判官の名前(どの事件でも同じ人物。立ち絵は `ASSETS.judge`)。 */
+/** 裁判型の裁判官の名前(どの事件でも同じ人物。立ち絵は `TRIAL_SPRITES.judge`)。 */
 export const JUDGE_NAME = "アヤ";
 
 /** 裁判型の法廷に立つ 3 人(ADR 0017)。検察官はプレイヤー。 */

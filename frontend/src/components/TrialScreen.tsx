@@ -11,6 +11,7 @@ import { llmCalls } from "@/lib/events";
 import { isAdvanceKey } from "@/lib/keys";
 import { STRENGTH_LABELS } from "@/lib/labels";
 import { shouldShowOpening } from "@/lib/opening";
+import { defendantPose, prosecutorPose } from "@/lib/pose";
 import { judgeLabel, prosecutorLabel, speakerLabel } from "@/lib/roles";
 import { hasVerdictScene } from "@/lib/verdict";
 import {
@@ -325,7 +326,12 @@ export function TrialBoard({
     const evidenceName = view.case.evidence.find((e) => e.id === option.evidence_id)?.name ?? null;
     const typed = accusationTyped === accusation.index;
     stage = (
-      <CourtShot kind="prosecutor" alt={TRIAL_ROLE_NAMES.prosecutor} speaking={!cutIn && !typed}>
+      <CourtShot
+        kind="prosecutor"
+        alt={TRIAL_ROLE_NAMES.prosecutor}
+        pose={prosecutorPose(option)}
+        speaking={!cutIn && !typed}
+      >
         <DialogueBox
           name={prosecutorLabel(view)}
           waiting={typed && !cutIn}
@@ -348,7 +354,7 @@ export function TrialBoard({
     // 最後の矛盾を崩した応答(と「証言崩壊!」)のあと、判決へ
     const waiting = Boolean(streaming) || holdReply || collapseBusy;
     stage = (
-      <CourtShot kind="stand" alt={personName(view, last.witness_id)}>
+      <CourtShot kind="stand" alt={personName(view, last.witness_id)} pose={defendantPose(last.option)}>
         <DialogueBox
           name={speakerLabel(view, last.witness_id)}
           waiting={!waiting}
@@ -373,7 +379,7 @@ export function TrialBoard({
     );
   } else if (recitalPending && last && testimony) {
     stage = (
-      <CourtShot kind="stand" alt={personName(view, last.witness_id)}>
+      <CourtShot kind="stand" alt={personName(view, last.witness_id)} pose={defendantPose(last.option)}>
         <DialogueBox
           name={speakerLabel(view, last.witness_id)}
           waiting={!collapseBusy}
@@ -394,7 +400,7 @@ export function TrialBoard({
     );
   } else if (view.stage === "answering" && !questionReady && last && !streaming) {
     stage = (
-      <CourtShot kind="stand" alt={personName(view, last.witness_id)}>
+      <CourtShot kind="stand" alt={personName(view, last.witness_id)} pose={defendantPose(last.option)}>
         <DialogueBox
           name={speakerLabel(view, last.witness_id)}
           waiting={!holdReply && !collapseBusy}
@@ -443,8 +449,19 @@ export function TrialBoard({
     const showLine = !reply && line;
     const busy = Boolean(streaming) || running || holdReply || collapseBusy || evidenceBusy;
     const speakerName = reply ? speakerLabel(view, reply.witnessId) : witnessName;
+    // 応答中は選んだ行動(この画面で選んだものだけ)、応答のあとは記録の行動で表情を決める
+    const replyOption = streaming
+      ? accusation?.index === view.exchanges.length
+        ? accusation.option
+        : null
+      : (replyFromLast?.option ?? null);
     stage = (
-      <CourtShot kind="stand" alt={speakerName} speaking={Boolean(streaming) && !holdReply}>
+      <CourtShot
+        kind="stand"
+        alt={speakerName}
+        pose={reply ? defendantPose(replyOption) : "standard"}
+        speaking={Boolean(streaming) && !holdReply}
+      >
         <DialogueBox
           name={speakerName}
           waiting={!busy}

@@ -66,7 +66,13 @@ function ScriptedScene({
   const name = speakerName(line.speaker, view);
   const showText = !holding || ending;
   const stage = (
-      <CourtShot kind={SHOT[line.speaker]} alt={name} speaking={dialogue.typing} shake={Boolean(line.gavel) && showText}>
+      <CourtShot
+        kind={SHOT[line.speaker]}
+        alt={name}
+        pose={line.pose}
+        speaking={dialogue.typing}
+        shake={Boolean(line.gavel) && showText}
+      >
         {line.gavel && showText && (
           <span key={dialogue.index} className="gavel-sound absolute right-[8%] top-[8%] text-4xl font-black">
             カンッ!

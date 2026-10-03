@@ -38,7 +38,7 @@ export function verdictScript(view: TrialView): OpeningLine[] {
         ? `刑罰は……「${sentence}」とします!`
         : "被告には、自らのおこないを深く反省してもらいます。",
     },
-    { speaker: "defendant", text: verdict?.defendant_reaction ?? DEFAULT_VERDICT.defendant_reaction },
+    { speaker: "defendant", pose: "lose", text: verdict?.defendant_reaction ?? DEFAULT_VERDICT.defendant_reaction },
   ];
 }
 

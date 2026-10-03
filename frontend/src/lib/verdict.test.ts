@@ -24,6 +24,7 @@ describe("verdictScript", () => {
     expect(script[1].text).toContain("有罪");
     expect(script[2].text).toContain("3日間のおやつ抜き");
     expect(script[3].text).toBe("にゃんですと……");
+    expect(script[3].pose).toBe("lose");
   });
 
   it("事件に判決のデータがなければ定型文", () => {

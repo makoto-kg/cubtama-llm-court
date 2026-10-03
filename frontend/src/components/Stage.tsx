@@ -20,7 +20,7 @@ function Figure({
         src={ASSETS[who]}
         alt={SPEAKER_NAMES[who]}
         width={who === "judge" ? 120 : 150}
-        height={who === "judge" ? 144 : 195}
+        height={who === "judge" ? 166 : 195}
         className={speaking ? "speaking" : ""}
         priority
       />

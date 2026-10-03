@@ -1,4 +1,5 @@
 import type { TrialView } from "@/api/client";
+import type { CharacterPose } from "@/assets/manifest";
 
 import { currentTestimony, personName } from "./trial";
 
@@ -12,6 +13,8 @@ export type OpeningLine = {
   cutIn?: string;
   /** 台詞と同時に木槌を鳴らす。 */
   gavel?: boolean;
+  /** 話す人の表情(省略時は通常)。 */
+  pose?: CharacterPose;
 };
 
 /** 開廷の場面のカットイン(オリジナルの文言)。 */
