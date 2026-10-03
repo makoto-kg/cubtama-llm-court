@@ -32,7 +32,7 @@ case:
       role: 飼い主
       description: カブとタマの飼い主。チュールを戸棚にしまっていた
   defendant_id: P-01
-  # 検察官(プレイヤー)はタマが演じる。名札は「タマ（検察官）」
+  # 検察官(プレイヤー)はタマが演じる。名札は「タマ検察官」
   prosecutor_id: P-02
   prosecutor_speech: cat
   evidence:
