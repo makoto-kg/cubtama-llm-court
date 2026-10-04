@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import { acquireBgm, syncBgm } from "@/lib/bgm";
-import { blipDue, playBlip, setSoundEnabled, soundEnabled, SOUND_STORAGE_KEY } from "@/lib/sound";
+import { blipDue, parseSoundEnabled, playBlip, setSoundEnabled, soundEnabled, SOUND_STORAGE_KEY } from "@/lib/sound";
 
 const CHANGE_EVENT = "llm-court:sound-change";
 
 function subscribe(onChange: () => void): () => void {
   const onStorage = (e: StorageEvent) => {
     if (e.key === SOUND_STORAGE_KEY) {
-      setSoundEnabled(e.newValue !== "off");
+      setSoundEnabled(parseSoundEnabled(e.newValue));
       onChange();
     }
   };
@@ -22,9 +22,9 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
-/** 効果音の有無(閲覧者のブラウザに覚えておく)。静的ビルドの描画と最初の描画は「出す」にする。 */
+/** 効果音の有無(閲覧者のブラウザに覚えておく)。静的ビルドの描画と最初の描画は「出さない」にする。 */
 export function useSoundEnabled(): [boolean, (on: boolean) => void] {
-  const on = useSyncExternalStore(subscribe, soundEnabled, () => true);
+  const on = useSyncExternalStore(subscribe, soundEnabled, () => false);
   const set = useCallback((next: boolean) => {
     setSoundEnabled(next);
     window.dispatchEvent(new Event(CHANGE_EVENT));

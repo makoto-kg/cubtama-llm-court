@@ -68,7 +68,7 @@ pnpm gen:api         # backend の OpenAPI から API 型を生成(src/api/schem
   - 裁判型の 3 人(アヤ裁判長・タマ検察官・カブ被告)は透過 PNG の立ち絵で、場面で表情を変える(ADR 0022)。表情の決め方は `src/lib/pose.ts`
   - 立ち絵とタイトルロゴは `.work/` の元画像から `uv run --no-project --with pillow --with numpy --with scipy python scripts/cutout_sprites.py` で作る(背景を抜いて `public/assets/characters/`・`public/assets/title.png` に出力)
   - ディベートの肯定側・否定側はオリジナルの仮素材の SVG
-- 効果音は音のファイルを使わず Web Audio API で合成する(`src/lib/sound.ts`。ADR 0023)。見出しの「♪」で切り替え、既定は音あり
+- 効果音は音のファイルを使わず Web Audio API で合成する(`src/lib/sound.ts`。ADR 0023)。見出しの「♪」で切り替え、既定は音なし
   - BGM は `public/assets/audio/bgm.m4a`(`.work/bgm.mp3` を HE-AAC 32kbps に縮めたもの。500KB 未満に保つ)。見出し(`HeaderNav`)から全ページで流す(`src/lib/bgm.ts`)
 - 「思考ログ」パネル(LLMの入力・生出力・パース結果・トークン数・レイテンシ)はゲームの機能として実装する。開発者用の隠し機能にしない
 

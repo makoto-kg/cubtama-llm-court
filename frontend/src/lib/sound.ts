@@ -3,7 +3,7 @@
  * - 文字送りの音(`playBlip`): 台詞を打ち出す間、数文字ごとに短く鳴らす「パラパラ」
  * - つきつける音(`playSlam`): 証拠品をつきつけた瞬間の「バシッ」
  *
- * 音を出すかどうかは閲覧者が選び、`localStorage` に覚えておく(既定は出す)。
+ * 音を出すかどうかは閲覧者が選び、`localStorage` に覚えておく(既定は出さない)。
  */
 
 /** 音の有無を覚えておく `localStorage` のキー(閲覧者ごとの設定)。 */
@@ -12,9 +12,9 @@ export const SOUND_STORAGE_KEY = "llm-court:sound";
 /** 文字送りの音の最短の間隔(ms)。これより速く文字が出ても、この間隔でしか鳴らさない。 */
 export const BLIP_INTERVAL_MS = 55;
 
-/** 保存値を音の有無として読む。未設定・不正な値は「出す」。 */
+/** 保存値を音の有無として読む。未設定・不正な値は「出さない」。 */
 export function parseSoundEnabled(value: string | null | undefined): boolean {
-  return value !== "off";
+  return value === "on";
 }
 
 /** 音を鳴らさない文字(空白・句読点・記号)。間や区切りでは音を止め、しゃべっている感じを出す。 */
@@ -37,7 +37,7 @@ export function soundEnabled(): boolean {
     try {
       enabled = parseSoundEnabled(window.localStorage.getItem(SOUND_STORAGE_KEY));
     } catch {
-      enabled = true;
+      enabled = false;
     }
   }
   return enabled;

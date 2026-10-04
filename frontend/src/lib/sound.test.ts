@@ -25,10 +25,10 @@ describe("blipDue", () => {
 });
 
 describe("parseSoundEnabled", () => {
-  it("既定は音を出す。off のときだけ出さない", () => {
-    expect(parseSoundEnabled(null)).toBe(true);
+  it("既定は音を出さない。on のときだけ出す", () => {
+    expect(parseSoundEnabled(null)).toBe(false);
     expect(parseSoundEnabled("on")).toBe(true);
-    expect(parseSoundEnabled("broken")).toBe(true);
+    expect(parseSoundEnabled("broken")).toBe(false);
     expect(parseSoundEnabled("off")).toBe(false);
   });
 });
