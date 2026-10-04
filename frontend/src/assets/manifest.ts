@@ -49,6 +49,13 @@ export function trialSprite(role: keyof typeof TRIAL_SPRITES, pose: CharacterPos
   return poses[pose] ?? poses.standard;
 }
 
+/** タイトルロゴ(`scripts/cutout_sprites.py` で元画像から背景を抜いた透過 PNG)。 */
+export const TITLE_LOGO: Sprite = { src: withBasePath("/assets/title.png"), width: 1600, height: 879 };
+
+/** タイトル(ロゴの画像の代替テキストにも使う)とサブタイトル。 */
+export const GAME_TITLE = "にゃくてん裁判";
+export const GAME_SUBTITLE = "そのトークンに異議あり";
+
 export const SPEAKER_NAMES = {
   judge: "裁判長",
   affirmative: "肯定側",
