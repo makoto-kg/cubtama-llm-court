@@ -213,6 +213,77 @@ body {
   }
 }
 
+/* 話している間の口パク(CourtScene の MouthFlap)。下あごを下げ、口の中を同じだけ広げる */
+@keyframes mouth-jaw {
+  0%,
+  15% {
+    transform: translateY(0);
+  }
+  50%,
+  65% {
+    transform: translateY(var(--mouth-open));
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes mouth-inside {
+  0%,
+  15% {
+    transform: scaleY(0);
+  }
+  50%,
+  65% {
+    transform: scaleY(1);
+  }
+  100% {
+    transform: scaleY(0);
+  }
+}
+
+.mouth-jaw {
+  animation: mouth-jaw 0.24s ease-in-out infinite;
+}
+
+.mouth-inside {
+  transform-box: fill-box;
+  transform-origin: 50% 0;
+  animation: mouth-inside 0.24s ease-in-out infinite;
+}
+
+/* 口を開けて描いた立ち絵の口パク: 口を閉じた版の口まわりを出し入れする(口を開けた時間を少し長く) */
+@keyframes mouth-closed {
+  0%,
+  40% {
+    opacity: 1;
+  }
+  50%,
+  90% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.mouth-closed {
+  opacity: 0;
+  animation: mouth-closed 0.24s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mouth-jaw,
+  .mouth-inside,
+  .mouth-closed {
+    animation: none;
+  }
+
+  .mouth-inside {
+    transform: scaleY(0);
+  }
+}
+
 /* 手前の机: 木目と金の縁 */
 .court-desk {
   background:

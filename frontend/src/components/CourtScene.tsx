@@ -1,7 +1,7 @@
 import Image from "next/image";
-import type { ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useId } from "react";
 
-import { type CharacterPose, trialSprite } from "@/assets/manifest";
+import { type CharacterPose, type Sprite, trialSprite } from "@/assets/manifest";
 
 /**
  * 法廷の「カメラ」。話す人ごとに画面を切り替える(ADV の定番の見せ方。素材・意匠はオリジナル)。
@@ -11,13 +11,14 @@ export type CourtShotKind = "judge" | "prosecutor" | "stand";
 
 const ROLE = { judge: "judge", prosecutor: "prosecutor", stand: "defendant" } as const;
 
-type Placement = { height: string; box: string; position: string };
+/** `position` は立ち絵の寄せ方(`object-position`)、`align` は口パクの重ね絵の同じ寄せ方(`preserveAspectRatio`)。 */
+type Placement = { height: string; box: string; position: string; align: string };
 
 /** 立ち絵の置き場所(画面の高さに対する立ち絵の高さと、横の寄せ方)。 */
 const PLACEMENT: Record<CourtShotKind, Placement> = {
-  judge: { height: "h-[96%]", box: "inset-x-0 justify-center", position: "object-bottom" },
-  prosecutor: { height: "h-[98%]", box: "inset-x-0 justify-center", position: "object-bottom" },
-  stand: { height: "h-[97%]", box: "inset-x-0 justify-center", position: "object-bottom" },
+  judge: { height: "h-[96%]", box: "inset-x-0 justify-center", position: "object-bottom", align: "xMidYMax" },
+  prosecutor: { height: "h-[98%]", box: "inset-x-0 justify-center", position: "object-bottom", align: "xMidYMax" },
+  stand: { height: "h-[97%]", box: "inset-x-0 justify-center", position: "object-bottom", align: "xMidYMax" },
 };
 
 /** つきつけるときは左に寄せ、右の相手を指さす。 */
@@ -25,6 +26,7 @@ const IGIARI_PLACEMENT: Placement = {
   height: "h-[98%]",
   box: "left-[4%] right-0 justify-start",
   position: "object-left-bottom",
+  align: "xMinYMax",
 };
 
 /** 表情ごとの動き(困惑は震え、有罪はうなだれる、つきつけるは踏み込む)。 */
@@ -69,6 +71,70 @@ function Desk({ kind, pose }: { kind: CourtShotKind; pose: CharacterPose }) {
   );
 }
 
+/**
+ * 話している間の口パク。立ち絵の上に、下あごの部分だけを切り抜いた同じ絵を重ねて上下させ、
+ * そのすき間から口の中を見せる。座標は立ち絵の画素で、`viewBox` で立ち絵と同じ大きさ・寄せ方に合わせる。
+ */
+function MouthFlap({ sprite, align }: { sprite: Sprite; align: string }) {
+  // `url(#…)` で参照するので、記号を含まない id にする
+  const id = `mouth${useId().replace(/[^\w-]/g, "")}`;
+  const closed = sprite.closedMouth;
+  if (closed) {
+    // 口を開けて描いた立ち絵は、口を閉じた版の口まわりを重ねたり外したりする
+    return (
+      <svg
+        className="pointer-events-none absolute inset-0 h-full w-full"
+        viewBox={`0 0 ${sprite.width} ${sprite.height}`}
+        preserveAspectRatio={`${align} meet`}
+        aria-hidden
+      >
+        <image
+          className="mouth-closed"
+          href={closed.src}
+          x={closed.x}
+          y={closed.y}
+          width={closed.width}
+          height={closed.height}
+        />
+      </svg>
+    );
+  }
+  const mouth = sprite.mouth;
+  if (!mouth) return null;
+  const { x, y, width, jaw, open } = mouth;
+  const half = width / 2;
+  // 口の中: 合わせ目から下へ、下あごを下げた分だけ開く形(中央の深さが `open`)
+  const inside = `M${x - half},${y} C${x - half / 2},${y - 1} ${x + half / 2},${y - 1} ${x + half},${y} C${x + half / 2},${y + (open * 4) / 3} ${x - half / 2},${y + (open * 4) / 3} ${x - half},${y} Z`;
+  const style = { "--mouth-open": `${open}px` } as CSSProperties;
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      viewBox={`0 0 ${sprite.width} ${sprite.height}`}
+      preserveAspectRatio={`${align} meet`}
+      aria-hidden
+      style={style}
+    >
+      <defs>
+        <linearGradient id={`${id}-inside`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#2a0a0e" />
+          <stop offset="1" stopColor="#9a4652" />
+        </linearGradient>
+        <filter id={`${id}-soft`}>
+          <feGaussianBlur stdDeviation="1.2" />
+        </filter>
+        {/* 下あご: 口の合わせ目を上の端にした楕円。輪郭をぼかして元の絵になじませる */}
+        <mask id={`${id}-jaw`}>
+          <ellipse cx={x} cy={y + jaw / 2} rx={width * 0.9} ry={jaw / 2} fill="white" filter={`url(#${id}-soft)`} />
+        </mask>
+      </defs>
+      <path className="mouth-inside" d={inside} fill={`url(#${id}-inside)`} />
+      <g className="mouth-jaw">
+        <image href={sprite.src} width={sprite.width} height={sprite.height} mask={`url(#${id}-jaw)`} />
+      </g>
+    </svg>
+  );
+}
+
 /** 1 人を映す法廷の画面。`children` は画面の上に重ねるもの(台詞の枠など)。 */
 export function CourtShot({
   kind,
@@ -95,15 +161,21 @@ export function CourtShot({
       <div key={`${kind}-${pose === "igiari" ? "action" : "still"}`} className="shot-in absolute inset-0">
         <Backdrop kind={kind} pose={pose} />
         <div className={`absolute bottom-0 top-0 flex items-end ${place.box} ${speaking ? "speaking" : ""}`}>
-          <Image
+          <div
             key={sprite.src}
-            src={sprite.src}
-            alt={alt}
-            width={sprite.width}
-            height={sprite.height}
-            className={`court-figure ${place.height} w-auto max-w-full object-contain ${place.position} ${POSE_CLASS[pose]}`}
-            priority
-          />
+            className={`court-figure relative ${place.height} max-w-full ${POSE_CLASS[pose]}`}
+            style={{ aspectRatio: `${sprite.width} / ${sprite.height}` }}
+          >
+            <Image
+              src={sprite.src}
+              alt={alt}
+              width={sprite.width}
+              height={sprite.height}
+              className={`h-full w-full object-contain ${place.position}`}
+              priority
+            />
+            {speaking && <MouthFlap sprite={sprite} align={place.align} />}
+          </div>
         </div>
         <Desk kind={kind} pose={pose} />
         <div className="court-vignette pointer-events-none absolute inset-0" />

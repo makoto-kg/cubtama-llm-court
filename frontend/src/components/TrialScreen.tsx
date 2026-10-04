@@ -186,6 +186,8 @@ export function TrialBoard({
   // カットイン(確認!・反証!・証言崩壊! など)と検察官の台詞が終わるまで、応答の台詞は送らない
   const holdReply = Boolean(cutIn) || prosecutorPhase;
   const markTyped = useCallback(() => setTypedKey(replyKey), [replyKey]);
+  // 応答の台詞を打ち出している間は被告が話している(口パク)。ストリーミングが終わっても、打ち終えるまで続ける
+  const replyTyping = !holdReply && typedKey !== replyKey;
   const replyText = (text: string) => (
     <Typewriter
       text={text}
@@ -362,7 +364,12 @@ export function TrialBoard({
     // 最後の矛盾を崩した応答(と「証言崩壊!」)のあと判決へ。ゲージが尽きた応答のあとは審理の中断へ
     const waiting = Boolean(streaming) || holdReply || collapseBusy;
     stage = (
-      <CourtShot kind="stand" alt={personName(view, last.witness_id)} pose={defendantPose(last.option)}>
+      <CourtShot
+        kind="stand"
+        alt={personName(view, last.witness_id)}
+        pose={defendantPose(last.option)}
+        speaking={replyTyping}
+      >
         <DialogueBox
           name={speakerLabel(view, last.witness_id)}
           waiting={!waiting}
@@ -387,7 +394,12 @@ export function TrialBoard({
     );
   } else if (recitalPending && last && testimony) {
     stage = (
-      <CourtShot kind="stand" alt={personName(view, last.witness_id)} pose={defendantPose(last.option)}>
+      <CourtShot
+        kind="stand"
+        alt={personName(view, last.witness_id)}
+        pose={defendantPose(last.option)}
+        speaking={replyTyping}
+      >
         <DialogueBox
           name={speakerLabel(view, last.witness_id)}
           waiting={!collapseBusy}
@@ -408,7 +420,12 @@ export function TrialBoard({
     );
   } else if (view.stage === "answering" && !questionReady && last && !streaming) {
     stage = (
-      <CourtShot kind="stand" alt={personName(view, last.witness_id)} pose={defendantPose(last.option)}>
+      <CourtShot
+        kind="stand"
+        alt={personName(view, last.witness_id)}
+        pose={defendantPose(last.option)}
+        speaking={replyTyping}
+      >
         <DialogueBox
           name={speakerLabel(view, last.witness_id)}
           waiting={!holdReply && !collapseBusy}
@@ -468,7 +485,7 @@ export function TrialBoard({
         kind="stand"
         alt={speakerName}
         pose={reply ? defendantPose(replyOption) : "standard"}
-        speaking={Boolean(streaming) && !holdReply}
+        speaking={Boolean(reply) && replyTyping}
       >
         <DialogueBox
           name={speakerName}
