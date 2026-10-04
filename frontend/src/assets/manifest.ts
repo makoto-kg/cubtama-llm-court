@@ -22,18 +22,19 @@ function sprite(name: string, width: number, height: number): Sprite {
 /**
  * 裁判型の法廷に立つ 3 人の立ち絵(ADR 0017)。どの事件でも同じ顔ぶれが演じる。
  * - 裁判官: アヤ裁判長
- * - 検察官(プレイヤー): タマ。`igiari` は証拠品をつきつけるとき
+ * - 検察官(プレイヤー): タマ。`igiari` は証拠品をつきつけるとき、`lose` はゲージが尽きて審理が中断したとき
  * - 被告: カブ。`nervous` は矛盾を突かれたとき、`lose` は有罪の判決を受けたとき
  */
 export const TRIAL_SPRITES: {
   judge: { standard: Sprite };
-  prosecutor: { standard: Sprite; igiari: Sprite };
+  prosecutor: { standard: Sprite; igiari: Sprite; lose: Sprite };
   defendant: { standard: Sprite; nervous: Sprite; lose: Sprite };
 } = {
   judge: { standard: sprite("aya_standard", 795, 1100) },
   prosecutor: {
     standard: sprite("tama_standard", 784, 1100),
     igiari: sprite("tama_igiari", 1100, 858),
+    lose: sprite("tama_lose", 790, 1100),
   },
   defendant: {
     standard: sprite("cub_standard", 751, 1100),

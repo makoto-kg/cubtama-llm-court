@@ -2,7 +2,21 @@ import { describe, expect, it } from "vitest";
 
 import { apply, start, toTrialView } from "./offline/engine";
 import { makePack } from "./offline/__fixtures__/pack";
-import { DEFAULT_VERDICT, hasVerdictScene, VERDICT_CUT_IN, verdictScript } from "./verdict";
+import {
+  DEFAULT_VERDICT,
+  endingScene,
+  hasVerdictScene,
+  SUSPENSION_CUT_IN,
+  suspensionScript,
+  VERDICT_CUT_IN,
+  verdictScript,
+} from "./verdict";
+
+function penaltyView() {
+  let state = start(makePack(2), "seed");
+  state = apply(state, { kind: "choose", optionId: state.pending.find((o) => o.strength === "trap")!.id });
+  return toTrialView(state);
+}
 
 function solvedView(verdict?: { sentence: string; defendant_reaction: string }) {
   const pack = makePack();
@@ -41,5 +55,33 @@ describe("hasVerdictScene", () => {
     state = apply(state, { kind: "choose", optionId: state.pending.find((o) => o.strength === "trap")!.id });
     expect(toTrialView(state).result).toBe("penalty");
     expect(hasVerdictScene(toTrialView(state))).toBe(false);
+  });
+});
+
+describe("suspensionScript", () => {
+  it("裁判官が中断を告げ、最後に検察官が肩を落とす", () => {
+    const script = suspensionScript(penaltyView());
+    expect(script.map((l) => l.speaker)).toEqual(["judge", "judge", "prosecutor"]);
+    expect(script[0].cutIn).toBe(SUSPENSION_CUT_IN.suspend);
+    expect(script[1].text).toContain("中断");
+    expect(script[2].pose).toBe("lose");
+  });
+
+  it("検察官の台詞は事件の口調に合わせる", () => {
+    const view = penaltyView();
+    const cat = suspensionScript({ ...view, case: { ...view.case, prosecutor_speech: "cat" } });
+    expect(cat[2].text).toContain("にゃ");
+    expect(suspensionScript({ ...view, case: { ...view.case, prosecutor_speech: "plain" } })[2].text).not.toContain("にゃ");
+  });
+});
+
+describe("endingScene", () => {
+  it("全矛盾を解いたら判決、ゲージが尽きたら審理の中断", () => {
+    expect(endingScene(solvedView())).toBe("verdict");
+    expect(endingScene(penaltyView())).toBe("suspension");
+  });
+
+  it("審理中は出さない", () => {
+    expect(endingScene(toTrialView(start(makePack(), "seed")))).toBeNull();
   });
 });

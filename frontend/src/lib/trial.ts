@@ -188,3 +188,16 @@ export function objectionTargets(explanation: Explanation): ObjectionTargetOptio
   }
   return targets;
 }
+
+/**
+ * 画面に出すペナルティゲージ。行動を選んでから、その応答(`r-<番号>`)を読み終えるまでは、選ぶ前の値のままにする
+ * (つきつけた結果のペナルティは、被告の台詞を読み終えてから減らして見せる)。
+ */
+export function shownPenaltyGauge(
+  actual: number,
+  choice: { index: number; gauge: number } | null,
+  typedKey: string | null,
+): number {
+  if (!choice || typedKey === `r-${choice.index}`) return actual;
+  return Math.max(actual, choice.gauge);
+}

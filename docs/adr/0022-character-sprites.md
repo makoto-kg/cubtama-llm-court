@@ -12,7 +12,7 @@
 
 - 裁判型の法廷に立つ 3 人は、どの事件でも同じ顔ぶれが演じる
   - 裁判官: アヤ(`aya_standard`)
-  - 検察官(プレイヤー): タマ(`tama_standard`・つきつけるときの `tama_igiari`)
+  - 検察官(プレイヤー): タマ(`tama_standard`・つきつけるときの `tama_igiari`・審理が中断したときの `tama_lose`)
   - 被告: カブ(`cub_standard`・矛盾を突かれたときの `cub_nervous`・有罪のあとの `cub_lose`)
 - 元画像は `frontend/.work/`(git 管理外)に置き、`frontend/scripts/cutout_sprites.py` で背景を抜いた透過 PNG を
   `frontend/public/assets/characters/` に出力してコミットする
@@ -20,6 +20,13 @@
 - 立ち絵の選び方は `src/assets/manifest.ts` の `TRIAL_SPRITES`・`trialSprite` に寄せ、表情は `CourtShot` の `pose` で渡す
   - 表情の決め方は `src/lib/pose.ts`(つきつける = `igiari`、証拠品をつきつけられた被告 = `nervous`。ただし `trap` の組では動じない)
   - 判決の場面の被告の台詞は `lose`(`verdictScript` の台詞に `pose` を持たせる)
+- ゲージが尽きて閉廷したときも、いきなり裁判のまとめにしない。判決の場面(ADR 0020)と同じ流れにする
+  - 最後の応答を読んでから「次へ」→ 審理の中断の場面(`suspensionScript`): 「審理中断」のカットインと木槌 → 裁判官が中断を告げる
+    → 検察官が肩を落とす(`tama_lose`。台詞は事件の口調 `prosecutor_speech` に合わせる)→「閉廷」→ 裁判のまとめ
+  - どちらの結末の場面を出すかは `endingScene`(全矛盾を解いた = 判決、ゲージが尽きた = 審理の中断)
+- ペナルティゲージは、選んだ瞬間ではなく、その行動への被告の応答を読み終えてから減らして見せる(`shownPenaltyGauge`)
+  - 状態(イベントログ・オフラインの行動の列)は選んだ時点で変わる。表示だけを応答の読み終わりまで選ぶ前の値に留める
+  - 減った目盛りは赤く光らせる。「つきつけた組: 罠(ペナルティ −2)」の注記も、ゲージが減るのと同時に出す
 - 法廷の背景・机・台詞の枠は CSS で描き直す(席ごとの壁・紋章・スポットライト・つきつけるときの集中線。すべてオリジナルの意匠)
 
 ## 理由

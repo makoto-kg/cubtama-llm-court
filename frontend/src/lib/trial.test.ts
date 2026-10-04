@@ -10,6 +10,7 @@ import {
   optionsByLine,
   pendingCollapse,
   prosecutorLine,
+  shownPenaltyGauge,
   stepLine,
   testimonyExamined,
 } from "./trial";
@@ -192,5 +193,21 @@ describe("prosecutorLine の口調", () => {
       expect(prosecutorLine(option("x", "present", "L1"), "昨日", "日程表", n, "cat")).toMatch(/^異議ありにゃ！/);
       expect(prosecutorLine(option("x", "probe", "L1"), "昨日", null, n, "cat")).not.toContain("異議あり");
     }
+  });
+});
+
+describe("shownPenaltyGauge", () => {
+  it("選んだ行動への応答を読み終えるまでは、選ぶ前の値を見せる", () => {
+    const choice = { index: 3, gauge: 5 };
+    expect(shownPenaltyGauge(3, choice, null)).toBe(5);
+    expect(shownPenaltyGauge(3, choice, "r-2")).toBe(5);
+  });
+
+  it("応答を読み終えたら実際の値", () => {
+    expect(shownPenaltyGauge(3, { index: 3, gauge: 5 }, "r-3")).toBe(3);
+  });
+
+  it("この画面で選んだ行動がなければ実際の値", () => {
+    expect(shownPenaltyGauge(3, null, null)).toBe(3);
   });
 });

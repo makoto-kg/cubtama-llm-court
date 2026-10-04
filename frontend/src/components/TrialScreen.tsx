@@ -13,7 +13,7 @@ import { STRENGTH_LABELS } from "@/lib/labels";
 import { shouldShowOpening } from "@/lib/opening";
 import { defendantPose, prosecutorPose } from "@/lib/pose";
 import { judgeLabel, prosecutorLabel, speakerLabel } from "@/lib/roles";
-import { hasVerdictScene } from "@/lib/verdict";
+import { endingScene } from "@/lib/verdict";
 import {
   COLLAPSE_CUT_IN,
   currentTestimony,
@@ -22,6 +22,7 @@ import {
   pendingCollapse,
   personName,
   prosecutorLine,
+  shownPenaltyGauge,
   stepLine,
   testimonyExamined,
   type WitnessStream,
@@ -34,7 +35,7 @@ import { CutInView } from "./CutIn";
 import { EvidenceOverlay, NewEvidenceNotice } from "./EvidenceOverlay";
 import { ExaminationPanel } from "./ExaminationPanel";
 import { GameShell } from "./GameShell";
-import { OpeningSequence, VerdictSequence } from "./OpeningSequence";
+import { OpeningSequence, SuspensionSequence, VerdictSequence } from "./OpeningSequence";
 import { PenaltyGauge } from "./PenaltyGauge";
 import { TestimonyRecital } from "./TestimonyRecital";
 import { ThinkingLog } from "./ThinkingLog";
@@ -141,19 +142,24 @@ export function TrialBoard({
   const [collapseShown, setCollapseShown] = useState(() => view.exchanges.length - 1);
   const [typedKey, setTypedKey] = useState<string | null>(null);
   // 「ゆさぶる」「つきつける」を選んだら、被告が答える前に検察官(プレイヤー)の台詞を出す。
-  // index は選んだときの応答の数(= この行動への応答の番号)。この画面で選んだ行動だけ(読み直しでは出さない)
-  const [accusation, setAccusation] = useState<{ option: TrialOption; index: number; spoken: boolean } | null>(
-    null,
-  );
+  // index は選んだときの応答の数(= この行動への応答の番号)。この画面で選んだ行動だけ(読み直しでは出さない)。
+  // gauge は選ぶ前のゲージ(応答を読み終えるまでは、この値を見せる)
+  const [accusation, setAccusation] = useState<{
+    option: TrialOption;
+    index: number;
+    spoken: boolean;
+    gauge: number;
+  } | null>(null);
   const [accusationTyped, setAccusationTyped] = useState<number | null>(null);
   // 尋問の中で手に入った証拠品の知らせ(ADR 0019)。知らせ終えた証拠品(開いた時点で手元にあるものは知らせない)
   const [knownEvidence, setKnownEvidence] = useState(() => view.case.evidence.map((e) => e.id));
-  // 全矛盾を解いて閉廷したら、崩れた応答を読んでから判決の場面へ(ADR 0020)。
-  // 開いた時点で閉廷していた裁判では判決の場面を出さず、裁判のまとめだけにする
-  const [verdictDone, setVerdictDone] = useState(() => view.status === "finished" || view.status === "aborted");
-  const [verdictStarted, setVerdictStarted] = useState(false);
+  // 閉廷したら、最後の応答を読んでから結末の場面へ。全矛盾を解いたら判決(ADR 0020)、
+  // ゲージが尽きたら審理の中断(ADR 0022)。開いた時点で閉廷していた裁判では出さず、裁判のまとめだけにする
+  const [endingDone, setEndingDone] = useState(() => view.status === "finished" || view.status === "aborted");
+  const [endingStarted, setEndingStarted] = useState(false);
   const finished = view.status === "finished" || view.status === "aborted";
-  const verdictPending = hasVerdictScene(view) && !verdictDone;
+  const ending = endingDone ? null : endingScene(view);
+  const endingPending = ending !== null;
   const testimony = currentTestimony(view);
   // 証言が始まったら、まず被告に一通り証言させてから尋問の操作を出す。
   // 被告の応答・カットインの最中は待ち、前の応答が画面にあればタップで次の証言へ進める
@@ -215,7 +221,7 @@ export function TrialBoard({
   }, [collapseIndex]);
   const choose = (optionId: string) => {
     const option = view.pending_options.find((o) => o.id === optionId);
-    if (option) setAccusation({ option, index: view.exchanges.length, spoken: false });
+    if (option) setAccusation({ option, index: view.exchanges.length, spoken: false, gauge: view.penalty_gauge });
     onChoose(optionId);
   };
   const finishAccusation = useCallback(
@@ -249,6 +255,7 @@ export function TrialBoard({
   const top = (
     <TopBar
       view={view}
+      gauge={shownPenaltyGauge(view.penalty_gauge, accusation, typedKey)}
       toolbar={toolbar}
       onEvidence={() => setEvidence({ present: false })}
       onRecord={() => setRecordOpen(true)}
@@ -275,11 +282,12 @@ export function TrialBoard({
     return <OpeningSequence view={view} onFinish={() => setOpeningDone(true)} />;
   }
 
-  if (verdictPending && verdictStarted) {
-    return <VerdictSequence view={view} onFinish={() => setVerdictDone(true)} />;
+  if (ending && endingStarted) {
+    const Sequence = ending === "verdict" ? VerdictSequence : SuspensionSequence;
+    return <Sequence view={view} onFinish={() => setEndingDone(true)} />;
   }
 
-  if (finished && !verdictPending) {
+  if (finished && !endingPending) {
     return (
       <div className="space-y-4">
         <CutInView cutIn={cutIn} onDone={onClearCutIn} />
@@ -350,15 +358,15 @@ export function TrialBoard({
       </CourtShot>
     );
     panel = examination(true);
-  } else if (verdictPending && last) {
-    // 最後の矛盾を崩した応答(と「証言崩壊!」)のあと、判決へ
+  } else if (endingPending && last) {
+    // 最後の矛盾を崩した応答(と「証言崩壊!」)のあと判決へ。ゲージが尽きた応答のあとは審理の中断へ
     const waiting = Boolean(streaming) || holdReply || collapseBusy;
     stage = (
       <CourtShot kind="stand" alt={personName(view, last.witness_id)} pose={defendantPose(last.option)}>
         <DialogueBox
           name={speakerLabel(view, last.witness_id)}
           waiting={!waiting}
-          onClick={waiting ? undefined : () => setVerdictStarted(true)}
+          onClick={waiting ? undefined : () => setEndingStarted(true)}
         >
           <p>{replyText(last.text)}</p>
         </DialogueBox>
@@ -366,11 +374,11 @@ export function TrialBoard({
     );
     panel = (
       <button
-        onClick={() => setVerdictStarted(true)}
+        onClick={() => setEndingStarted(true)}
         disabled={waiting}
         className="w-full rounded-lg border-2 border-[var(--court-accent)] bg-black/40 p-3 font-bold hover:bg-white/10 disabled:opacity-40"
       >
-        判決へ ▶
+        {ending === "verdict" ? "判決へ ▶" : "次へ ▶"}
       </button>
     );
   } else if (recitalPlaying && testimony) {
@@ -473,8 +481,10 @@ export function TrialBoard({
               {progress && running && !streaming && (
                 <p className="mt-1 animate-pulse text-xs opacity-70">{progress}</p>
               )}
+              {/* 組の強さ・ペナルティは、応答を読み終えてから(ゲージが減るのと同時に)見せる */}
               {replyFromLast &&
                 !holdReply &&
+                typedKey === replyKey &&
                 replyFromLast.option.strength &&
                 replyFromLast.option.strength !== "strong" && (
                   <p className="mt-1 text-xs text-amber-300">
@@ -540,11 +550,14 @@ export function TrialBoard({
 /** 画面上端のバー(事件名・操作 / ゲージ・矛盾の数・証拠品・記録)。スマホでも 2 行に収める。 */
 function TopBar({
   view,
+  gauge,
   toolbar,
   onEvidence,
   onRecord,
 }: {
   view: TrialView;
+  /** 画面に出すゲージ(`shownPenaltyGauge`)。 */
+  gauge: number;
   toolbar?: ReactNode;
   onEvidence: () => void;
   onRecord: () => void;
@@ -556,7 +569,7 @@ function TopBar({
         {toolbar && <div className="flex shrink-0 items-center gap-1.5 text-xs">{toolbar}</div>}
       </div>
       <div className="flex items-center justify-between gap-2">
-        <PenaltyGauge remaining={view.penalty_gauge} max={view.penalty_gauge_max} />
+        <PenaltyGauge remaining={gauge} max={view.penalty_gauge_max} />
         <span className="text-xs tabular-nums lg:text-sm">
           矛盾 {view.solved_count}/{view.contradiction_count}
         </span>

@@ -407,3 +407,27 @@ body {
 .evidence-sheet {
   animation: evidence-sheet-in 0.18s ease-out;
 }
+
+/* ペナルティゲージが減った瞬間(減った目盛りが赤く光って消える) */
+@keyframes gauge-hit {
+  0% {
+    background: #ff6b4a;
+    border-color: #ff6b4a;
+    box-shadow: 0 0 10px #ff6b4a;
+    transform: scale(1.35);
+  }
+  60% {
+    background: #ff6b4a;
+    transform: scale(1);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+.gauge-hit {
+  animation:
+    gauge-hit 0.9s ease-out,
+    shake 0.3s linear 1;
+}

@@ -6,7 +6,7 @@ import type { TrialView } from "@/api/client";
 import { useDialogue } from "@/hooks/useDialogue";
 import { defendantLabel, judgeLabel, prosecutorLabel } from "@/lib/roles";
 import { type OpeningLine, OPENING_CUT_IN, openingScript, type OpeningSpeaker } from "@/lib/opening";
-import { VERDICT_CUT_IN, verdictScript } from "@/lib/verdict";
+import { SUSPENSION_CUT_IN, suspensionScript, VERDICT_CUT_IN, verdictScript } from "@/lib/verdict";
 
 import { CourtShot, type CourtShotKind, DialogueBox } from "./CourtScene";
 import { CutInView } from "./CutIn";
@@ -127,6 +127,20 @@ export function VerdictSequence({ view, onFinish }: { view: TrialView; onFinish:
       script={script}
       label={`${view.case.title} — 判決`}
       endCutIn={VERDICT_CUT_IN.close}
+      onFinish={onFinish}
+    />
+  );
+}
+
+/** 審理が中断した場面。ゲージが尽きたら、裁判官が中断を告げ、検察官が肩を落とす → 閉廷 → 裁判のまとめ。 */
+export function SuspensionSequence({ view, onFinish }: { view: TrialView; onFinish: () => void }) {
+  const script = useMemo(() => suspensionScript(view), [view]);
+  return (
+    <ScriptedScene
+      view={view}
+      script={script}
+      label={`${view.case.title} — 審理中断`}
+      endCutIn={SUSPENSION_CUT_IN.close}
       onFinish={onFinish}
     />
   );

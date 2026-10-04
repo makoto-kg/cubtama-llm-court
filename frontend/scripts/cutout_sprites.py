@@ -25,6 +25,7 @@ NAMES = [
     "cub_lose",
     "tama_standard",
     "tama_igiari",
+    "tama_lose",
 ]
 # 出力の長辺(px)。表示は最大 256px 幅程度なので、高 DPI でも足りる大きさ
 MAX_SIDE = 1100
@@ -94,7 +95,7 @@ def cutout(path: Path) -> Image.Image:
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for name in NAMES:
-        out = cutout(SRC / f"{name}.jpg")
+        out = cutout(next(SRC.glob(f"{name}.jp*g")))
         dest = OUT / f"{name}.png"
         out.save(dest, optimize=True)
         print(f"{dest.relative_to(ROOT)}: {out.size[0]}x{out.size[1]}, {dest.stat().st_size // 1024} KiB")

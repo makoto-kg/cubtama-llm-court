@@ -46,3 +46,45 @@ export function verdictScript(view: TrialView): OpeningLine[] {
 export function hasVerdictScene(view: TrialView): boolean {
   return view.status === "finished" && view.result === "solved";
 }
+
+/** 審理が中断した場面のカットイン(オリジナルの文言)。 */
+export const SUSPENSION_CUT_IN = { suspend: "審理中断", close: "閉廷" } as const;
+
+/**
+ * ゲージが尽きて審理が中断した場面: 裁判官が中断を告げ、検察官(プレイヤー)が肩を落とす。
+ * 検察官の台詞は事件の口調(`prosecutor_speech`)に合わせる。LLM は使わない。
+ */
+export function suspensionScript(view: TrialView): OpeningLine[] {
+  const cat = view.case.prosecutor_speech === "cat";
+  return [
+    {
+      speaker: "judge",
+      cutIn: SUSPENSION_CUT_IN.suspend,
+      gavel: true,
+      text: "そこまで! 検察側、根拠のない指摘が続きすぎています。",
+    },
+    {
+      speaker: "judge",
+      text: "これ以上の審理は無意味と判断し、本件の審理を中断します。検察側は、証拠を一から見直してください。",
+    },
+    {
+      speaker: "prosecutor",
+      pose: "lose",
+      text: cat
+        ? "にゃ……。証拠品、ちゃんと読めてなかったにゃ……。次こそは、ぜったいウソを暴いてみせるにゃ……。"
+        : "……申し訳ありません。証拠品の読み込みが足りませんでした。次こそは、必ず真実を明らかにします。",
+    },
+  ];
+}
+
+/** 審理が中断した場面を見せるか。ゲージが尽きて閉廷した裁判だけ。 */
+export function hasSuspensionScene(view: TrialView): boolean {
+  return view.status === "finished" && view.result === "penalty";
+}
+
+/** 閉廷のあと、裁判のまとめの前に見せる場面(判決・審理の中断)。なければ null。 */
+export function endingScene(view: TrialView): "verdict" | "suspension" | null {
+  if (hasVerdictScene(view)) return "verdict";
+  if (hasSuspensionScene(view)) return "suspension";
+  return null;
+}
