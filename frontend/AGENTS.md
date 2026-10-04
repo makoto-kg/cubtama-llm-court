@@ -42,6 +42,7 @@ pnpm gen:api         # backend の OpenAPI から API 型を生成(src/api/schem
 - サブパス(GitHub Pages の `/<repo>/`)に配信できる状態を保つ(ADR 0021)。`public/` のファイルを `fetch`・`next/image` で参照するときは `withBasePath`(`src/lib/basePath.ts`)を通す。`next/link` には自動で付く
   - 確認: `NEXT_PUBLIC_BASE_PATH=/llm-court pnpm build`
   - デプロイは `.github/workflows/deploy-frontend.yml`
+- OGP(ADR 0024)の画像は `src/app/opengraph-image.jpg`(ファイル規約)。`uv run --no-project --with pillow --with numpy python scripts/make_og_image.py` でタイトルロゴと立ち絵から作る。絶対 URL のオリジンは `NEXT_PUBLIC_SITE_URL`(basePath は含めない)
 
 ### 完全オフラインモード(ADR 0014)
 

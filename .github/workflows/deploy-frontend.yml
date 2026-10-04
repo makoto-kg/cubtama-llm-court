@@ -53,6 +53,8 @@ jobs:
         env:
           # 例: /llm-court。カスタムドメインや <owner>.github.io リポジトリでは空になる
           NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          # OGP の画像の絶対 URL に使うオリジン(例: https://<owner>.github.io)
+          NEXT_PUBLIC_SITE_URL: ${{ steps.pages.outputs.origin }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
