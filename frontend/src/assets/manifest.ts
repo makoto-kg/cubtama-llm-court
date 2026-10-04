@@ -73,6 +73,12 @@ export function trialSprite(role: keyof typeof TRIAL_SPRITES, pose: CharacterPos
   return poses[pose] ?? poses.standard;
 }
 
+/**
+ * BGM(どのページでも流す)。`.work/bgm.mp3` の前後の無音を削り、HE-AAC(32kbps・ステレオ)に縮めたもの(ADR 0023)。
+ * 曲はそのままの長さで、くり返し流す。
+ */
+export const BGM = { src: withBasePath("/assets/audio/bgm.m4a"), volume: 0.35 } as const;
+
 /** タイトルロゴ(`scripts/cutout_sprites.py` で元画像から背景を抜いた透過 PNG)。 */
 export const TITLE_LOGO: Sprite = { src: withBasePath("/assets/title.png"), width: 1600, height: 879 };
 

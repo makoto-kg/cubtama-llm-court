@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useTypingSound } from "@/hooks/useSound";
 import { isAdvanceKey } from "@/lib/keys";
 import { nextVisibleLength } from "@/lib/typewriter";
 
@@ -11,6 +12,7 @@ import { nextVisibleLength } from "@/lib/typewriter";
  * - `hold` の間(カットインなど)は文字送りも操作も止める。台詞の番号ごとに決めるなら関数で渡す
  * - 自動では進めない。読み終えたらクリック・タップ・Enter・Space を待つ
  * - Enter・Space でも `advance` する
+ * - 文字を打ち出す間は文字送りの音を鳴らす(ADR 0023)
  */
 export function useDialogue({
   texts,
@@ -31,6 +33,8 @@ export function useDialogue({
   const hold = typeof holdOption === "function" ? holdOption(index) : holdOption;
   const text = texts[index] ?? "";
   const done = visible >= text.length;
+  const shown = text.slice(0, visible);
+  useTypingSound(shown);
 
   useEffect(() => {
     if (hold || done || ended) return;
@@ -69,5 +73,5 @@ export function useDialogue({
     return () => window.removeEventListener("keydown", onKey);
   }, [advance]);
 
-  return { index, text, shown: text.slice(0, visible), typing: !done && !hold && !ended, done, ended, hold, advance };
+  return { index, text, shown, typing: !done && !hold && !ended, done, ended, hold, advance };
 }

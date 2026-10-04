@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { useTypingSound } from "@/hooks/useSound";
 import { nextVisibleLength } from "@/lib/typewriter";
 
 /**
@@ -9,6 +10,7 @@ import { nextVisibleLength } from "@/lib/typewriter";
  * `resetKey` が変わったら最初から表示し直す(別の発言)。
  * `paused` の間(カットインの最中など)は文字を送らない。届いた分は再開後に追いつく速さで表示する。
  * 全文を出し終え、ストリーミングも終わったら `onDone` を呼ぶ(同じ発言で何度か呼ぶことがある)。
+ * 文字を打ち出す間は文字送りの音を鳴らす(ADR 0023)。
  */
 export function Typewriter({
   text,
@@ -53,6 +55,8 @@ export function Typewriter({
   useEffect(() => {
     if (finished) onDone?.();
   }, [finished, onDone]);
+
+  useTypingSound(text.slice(0, visible));
 
   const typing = !paused && (visible < text.length || active);
   return (

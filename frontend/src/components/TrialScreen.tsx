@@ -13,6 +13,7 @@ import { STRENGTH_LABELS } from "@/lib/labels";
 import { shouldShowOpening } from "@/lib/opening";
 import { defendantPose, prosecutorPose } from "@/lib/pose";
 import { judgeLabel, prosecutorLabel, speakerLabel } from "@/lib/roles";
+import { playSlam } from "@/lib/sound";
 import { endingScene } from "@/lib/verdict";
 import {
   COLLAPSE_CUT_IN,
@@ -224,6 +225,8 @@ export function TrialBoard({
   const choose = (optionId: string) => {
     const option = view.pending_options.find((o) => o.id === optionId);
     if (option) setAccusation({ option, index: view.exchanges.length, spoken: false, gauge: view.penalty_gauge });
+    // 証拠品をつきつけた瞬間の音(ADR 0023)
+    if (option?.kind === "present") playSlam();
     onChoose(optionId);
   };
   const finishAccusation = useCallback(
